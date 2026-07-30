@@ -1,0 +1,32 @@
+# Tech Stack
+
+AgentClinic is a server-rendered TypeScript web application. The stack favors reliability, a small operational footprint, and straightforward development.
+
+## Core Choices
+
+| Layer | Choice | Rationale |
+|---|---|---|
+| Language | TypeScript | Provides type safety across routes, domain models, and views |
+| Runtime | Node.js | Mature, popular, and widely supported |
+| Web framework | Hono | TypeScript-first, lightweight, and well suited to server-rendered applications |
+| Rendering | Hono JSX | Produces accessible HTML on the server with reusable typed components |
+| Styling | Plain CSS with custom properties | Keeps the browser experience fast and the visual system easy to maintain |
+| Data store | SQLite with `better-sqlite3` | Provides durable local data with minimal infrastructure |
+| Database changes | Versioned SQL migrations | Keeps schema evolution explicit and reviewable |
+| Testing | Vitest | Fast, TypeScript-friendly tests with a familiar API |
+| Development | `tsx` | Runs TypeScript directly during development |
+| Production build | `tsc` | Creates checked JavaScript output for Node.js |
+
+## Architecture Principles
+
+- Render useful HTML on the server; JavaScript is not required for core workflows.
+- Keep routes, domain logic, persistence, and presentation separate.
+- Validate all external input at the application boundary.
+- Prefer semantic HTML and progressive enhancement.
+- Keep dependencies few and introduce new infrastructure only when a demonstrated need appears.
+
+## Initial Constraints
+
+- Support current versions of major modern browsers.
+- Use a single Node.js service and a single SQLite database.
+- Defer authentication, notifications, and distributed infrastructure until the core clinic workflow is proven.
