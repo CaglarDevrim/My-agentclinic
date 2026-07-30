@@ -12,13 +12,16 @@
 1. Create an importable Hono application separately from the process that starts the server.
 2. Add `GET /health`, returning a `200` JSON response with `{ "status": "ok" }`.
 
-## Task Group 3 — Create the Minimal Home Page
+## Task Group 3 — Create the Shared Layout and Minimal Home Page
 
-1. Create a small Hono JSX home-page component.
-2. Render a complete HTML document with a descriptive page title.
-3. Add an `h1` containing `AgentClinic`.
-4. Add the visible message `AgentClinic is open for business`.
-5. Connect `GET /` to the component and return it as server-rendered HTML.
+1. Create a reusable Hono JSX `Layout` component.
+2. Create `Header`, `Main`, and `Footer` as separate subcomponent files and compose them in `Layout`.
+3. Render a complete HTML document with a descriptive page title.
+4. Create a small home-page component that renders its content inside `Layout`.
+5. Add an `h1` containing `AgentClinic`.
+6. Add the visible message `AgentClinic is open for business`.
+7. Create a CSS file, serve it as a static asset, and link it from the document head.
+8. Connect `GET /` to the component and return it as server-rendered HTML.
 
 ## Task Group 4 — Start the Server
 

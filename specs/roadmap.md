@@ -2,7 +2,7 @@
 
 Work is divided into very small, reviewable phases. Following the selected end-to-end-first strategy, the earliest phases establish a thin but complete clinic journey before individual areas are expanded.
 
-## Phase 1 — Open the Clinic
+## Phase 1 — Open the Clinic ✅
 
 - Configure Hono and the development server
 - Add a health check

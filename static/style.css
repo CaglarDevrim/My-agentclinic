@@ -1,0 +1,151 @@
+:root {
+  color-scheme: light;
+  font-family:
+    Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  margin: 0;
+  min-height: 100vh;
+  background: #f5f7fb;
+  color: #182230;
+}
+
+.site-header {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) minmax(18rem, 620px) 1fr;
+  gap: 1.5rem;
+  align-items: center;
+  padding: 1rem clamp(1rem, 4vw, 3rem);
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.site-header::after {
+  content: "";
+}
+
+.site-brand {
+  width: max-content;
+  color: #182230;
+  font-size: 1.2rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+main {
+  width: min(100% - 2rem, 960px);
+  margin-inline: auto;
+  padding-block: clamp(3rem, 10vh, 7rem);
+  text-align: center;
+}
+
+.search-form {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin: 0;
+  padding: 0.4rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.8rem;
+  box-shadow: 0 0.8rem 2rem rgb(15 23 42 / 10%);
+}
+
+.search-form:focus-within {
+  border-color: #2563eb;
+  box-shadow:
+    0 0 0 3px rgb(37 99 235 / 18%),
+    0 0.8rem 2rem rgb(15 23 42 / 10%);
+}
+
+.search-form input {
+  flex: 1;
+  min-width: 0;
+  height: 3.25rem;
+  padding: 0 1rem;
+  font: inherit;
+  font-size: 1rem;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+
+.search-form input::placeholder {
+  color: #64748b;
+}
+
+.search-form button {
+  display: grid;
+  flex: 0 0 3.25rem;
+  width: 3.25rem;
+  height: 3.25rem;
+  padding: 0;
+  place-items: center;
+  color: #ffffff;
+  cursor: pointer;
+  background: #2563eb;
+  border: 0;
+  border-radius: 50%;
+  transition:
+    background-color 150ms ease,
+    transform 150ms ease;
+}
+
+.search-form button:hover {
+  background: #1d4ed8;
+  transform: scale(1.04);
+}
+
+.search-form button:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 3px;
+}
+
+.search-form svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.site-footer {
+  padding: 1rem;
+  color: #475569;
+  text-align: center;
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
+}
+
+.site-footer p {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .site-header {
+    grid-template-columns: 1fr;
+  }
+
+  .site-header::after {
+    display: none;
+  }
+}
