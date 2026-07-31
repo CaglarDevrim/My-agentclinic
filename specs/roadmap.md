@@ -8,11 +8,11 @@ Work is divided into very small, reviewable phases. Following the selected end-t
 - Add a health check
 - Render a simple home page
 
-## Phase 2 — Shared Page Shell
+## Phase 2 — Navigation and Page-Shell Expansion
 
-- Add header, navigation, main content, and footer components
-- Add a small responsive CSS foundation
-- Render a consistent shell for every page
+- Add navigation destinations as new pages become available
+- Reuse the shared header, main content, and footer across every page
+- Expand the responsive CSS foundation for multi-page content
 
 ## Phase 3 — Thin Clinic Journey
 

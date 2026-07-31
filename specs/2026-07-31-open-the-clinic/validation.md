@@ -41,10 +41,14 @@ Success means all tests pass and demonstrate:
 
 - `GET /health` returns `200`, a JSON content type, and exactly `{ "status": "ok" }`.
 - `GET /` returns `200` and an HTML content type.
-- The home-page response is a complete HTML document with `html`, `head`, `title`, and `body` elements.
+- The home-page response begins with an HTML5 doctype and contains `html`, `head`, `title`, and `body` elements.
 - The document title contains `AgentClinic`.
+- The document contains semantic `header`, `main`, and `footer` elements.
 - The home-page HTML contains an `h1` with `AgentClinic`.
 - The home page contains `AgentClinic is open for business`.
+- The header contains an accessible search form, search input, labelled submit button, and search icon.
+- `GET /static/style.css` returns `200`, a CSS content type, and the expected search-form styles.
+- The page contains no client-side script dependency.
 - An unknown route returns `404`.
 - Importing the application for testing does not start a network server.
 
@@ -82,9 +86,11 @@ Success means:
 - The browser tab title identifies the page as `AgentClinic`.
 - `AgentClinic` appears as the primary heading.
 - `AgentClinic is open for business` is visible.
+- The header, search form, main content, and footer are visible and styled.
+- The search form remains usable at narrow viewport widths.
 - The content remains present when client-side JavaScript is disabled.
 
-Visual polish, shared navigation, and a reusable layout are not merge requirements in this phase; the shared page shell and responsive CSS belong to Phase 2.
+Search-result behavior and multi-page navigation are not merge requirements in this phase.
 
 ## Merge Gate
 

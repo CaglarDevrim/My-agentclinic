@@ -25,6 +25,14 @@ AgentClinic is a server-rendered TypeScript web application. The stack favors re
 - Prefer semantic HTML and progressive enhancement.
 - Keep dependencies few and introduce new infrastructure only when a demonstrated need appears.
 
+## Testing Strategy
+
+- Use Vitest in its Node environment for automated validation.
+- Import the Hono application and call `app.request()` so route tests do not open a network port.
+- Cover response status, content type, payload, semantic page structure, and static assets.
+- Keep the network-listening server entry point separate from the importable application.
+- Run the complete suite non-interactively with `npm test`.
+
 ## Initial Constraints
 
 - Support current versions of major modern browsers.

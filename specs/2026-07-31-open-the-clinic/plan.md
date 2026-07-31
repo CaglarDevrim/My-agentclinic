@@ -35,8 +35,9 @@
 1. Add a Vitest suite that calls the importable application without opening a network port.
 2. Verify `/health` returns status `200`, JSON content, and the agreed payload.
 3. Verify `/` returns status `200` and an HTML content type.
-4. Verify the home page contains the expected title, `AgentClinic` heading, and opening message.
-5. Verify an unknown route returns `404`.
+4. Verify the home page contains the expected title, semantic layout, `AgentClinic` heading, opening message, and accessible search form.
+5. Verify `/static/style.css` returns status `200`, a CSS content type, and the expected page styles.
+6. Verify an unknown route returns `404`.
 
 ## Task Group 6 — Verify the Feature
 
