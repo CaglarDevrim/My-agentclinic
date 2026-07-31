@@ -28,6 +28,7 @@ AgentClinic lets agents and clinic staff:
 - **Easy to use:** Common information and actions are quick to find.
 - **Welcoming:** The experience is attractive, calm, and supportive.
 - **Modern:** The site works well in current standards-compliant browsers.
+- **Responsive:** Every workflow remains clear and usable on mobile, tablet, and desktop screens.
 - **Focused:** Each release delivers a small, complete improvement.
 
 ## What Success Looks Like

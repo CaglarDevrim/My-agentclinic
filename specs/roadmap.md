@@ -2,6 +2,8 @@
 
 Work is divided into very small, reviewable phases. Following the selected end-to-end-first strategy, the earliest phases establish a thin but complete clinic journey before individual areas are expanded.
 
+Responsive behavior is a product-wide requirement for every phase, not work deferred until final polish. Each new page and workflow must support mobile, tablet, and desktop layouts when it is introduced.
+
 ## Phase 1 — Open the Clinic ✅
 
 - Configure Hono and the development server
@@ -66,7 +68,7 @@ At this point, one agent can move through a complete discovery-to-booking workfl
 
 ## Phase 11 — Responsive and Accessible Polish
 
-- Refine layouts for small and large screens
+- Audit and refine the responsive behavior delivered throughout earlier phases
 - Verify semantic structure and keyboard navigation
 - Add clear focus, validation, and error states
 

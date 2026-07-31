@@ -23,6 +23,8 @@ AgentClinic is a server-rendered TypeScript web application. The stack favors re
 - Keep routes, domain logic, persistence, and presentation separate.
 - Validate all external input at the application boundary.
 - Prefer semantic HTML and progressive enhancement.
+- Build layouts mobile-first with fluid sizing, flexible grids, and content-driven breakpoints.
+- Avoid fixed page widths or controls that create horizontal scrolling on narrow screens.
 - Keep dependencies few and introduce new infrastructure only when a demonstrated need appears.
 
 ## Testing Strategy
@@ -36,5 +38,8 @@ AgentClinic is a server-rendered TypeScript web application. The stack favors re
 ## Initial Constraints
 
 - Support current versions of major modern browsers.
+- Support viewport widths from `375px` mobile screens through `1280px` desktop screens.
+- Include the viewport meta tag on every rendered page.
+- Keep primary content and controls usable without horizontal page scrolling.
 - Use a single Node.js service and a single SQLite database.
 - Defer authentication, notifications, and distributed infrastructure until the core clinic workflow is proven.

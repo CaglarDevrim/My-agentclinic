@@ -21,6 +21,9 @@ describe("AgentClinic routes", () => {
     expect(html).toMatch(/<html\b[^>]*>/i);
     expect(html).toMatch(/<head\b[^>]*>/i);
     expect(html).toMatch(/<title>AgentClinic<\/title>/i);
+    expect(html).toContain(
+      'name="viewport" content="width=device-width, initial-scale=1"',
+    );
     expect(html).toMatch(/<body\b[^>]*>/i);
     expect(html).toMatch(/<header\b[^>]*>/i);
     expect(html).toMatch(/<main\b[^>]*>/i);
@@ -36,10 +39,15 @@ describe("AgentClinic routes", () => {
 
   it("serves the home page stylesheet", async () => {
     const response = await app.request("/static/style.css");
+    const css = await response.text();
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/css");
-    await expect(response.text()).resolves.toContain(".search-form");
+    expect(css).toContain(".search-form");
+    expect(css).toContain("width: min(100% - 2rem, 960px)");
+    expect(css).toContain("@media (max-width: 720px)");
+    expect(css).toContain("@media (max-width: 480px)");
+    expect(css).toContain("grid-template-columns: 1fr");
   });
 
   it("returns 404 for an unknown route", async () => {

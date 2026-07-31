@@ -15,6 +15,7 @@ This phase must:
 - Render a minimal but complete AgentClinic home page on the server.
 - Render the page through reusable header, main, and footer components.
 - Serve and link the page stylesheet.
+- Provide a responsive experience across mobile, tablet, and desktop widths.
 - Make application routes testable without starting a listening server.
 - Add automated checks for the public route behavior.
 
@@ -33,6 +34,15 @@ This phase must:
 - The document links `/static/style.css`, and that route returns CSS successfully.
 - The page is server-rendered and remains useful without client-side JavaScript.
 - The core page content does not depend on browser-side JavaScript.
+
+### Responsive Design
+
+- The document includes `width=device-width, initial-scale=1` viewport metadata.
+- The page remains usable without horizontal scrolling at a `375px` viewport width.
+- The header stacks its brand and search form when the available width is limited.
+- The search input and circular submit button remain fully visible and usable on narrow screens.
+- Content uses fluid sizing with bounded maximum widths rather than a fixed page width.
+- At a `1280px` viewport width, the header, search form, content, and footer use the available space without becoming excessively wide.
 
 ### Health Check
 
@@ -60,6 +70,7 @@ This phase must:
 - The project provides commands for development, type checking, building, and testing.
 - Vitest runs in a Node environment and exercises the importable Hono application directly.
 - Automated tests cover the home page, health check, stylesheet, and unknown-route behavior.
+- Automated checks verify the viewport metadata and responsive stylesheet rules.
 - The production build emits runnable JavaScript.
 
 ## Decisions

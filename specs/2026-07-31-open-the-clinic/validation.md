@@ -42,12 +42,13 @@ Success means all tests pass and demonstrate:
 - `GET /health` returns `200`, a JSON content type, and exactly `{ "status": "ok" }`.
 - `GET /` returns `200` and an HTML content type.
 - The home-page response begins with an HTML5 doctype and contains `html`, `head`, `title`, and `body` elements.
+- The document contains `width=device-width, initial-scale=1` viewport metadata.
 - The document title contains `AgentClinic`.
 - The document contains semantic `header`, `main`, and `footer` elements.
 - The home-page HTML contains an `h1` with `AgentClinic`.
 - The home page contains `AgentClinic is open for business`.
 - The header contains an accessible search form, search input, labelled submit button, and search icon.
-- `GET /static/style.css` returns `200`, a CSS content type, and the expected search-form styles.
+- `GET /static/style.css` returns `200`, a CSS content type, fluid sizing, and responsive breakpoint rules.
 - The page contains no client-side script dependency.
 - An unknown route returns `404`.
 - Importing the application for testing does not start a network server.
@@ -89,6 +90,19 @@ Success means:
 - The header, search form, main content, and footer are visible and styled.
 - The search form remains usable at narrow viewport widths.
 - The content remains present when client-side JavaScript is disabled.
+
+Verify at `375px` viewport width:
+
+- The brand and search form stack vertically.
+- The input and circular search button remain fully visible.
+- Header, main content, and footer fit without horizontal page scrolling.
+- Text remains readable without zooming.
+
+Verify at `1280px` viewport width:
+
+- The search form is centered in the header.
+- Main content uses a bounded readable width.
+- The layout uses the available space without excessive stretching.
 
 Search-result behavior and multi-page navigation are not merge requirements in this phase.
 

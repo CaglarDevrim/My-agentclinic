@@ -20,8 +20,10 @@
 4. Create a small home-page component that renders its content inside `Layout`.
 5. Add an `h1` containing `AgentClinic`.
 6. Add the visible message `AgentClinic is open for business`.
-7. Create a CSS file, serve it as a static asset, and link it from the document head.
-8. Connect `GET /` to the component and return it as server-rendered HTML.
+7. Add viewport metadata and create mobile-first, fluid styles for the shared layout and search form.
+8. Create a CSS file, serve it as a static asset, and link it from the document head.
+9. Add a breakpoint that stacks the header content on narrow screens.
+10. Connect `GET /` to the component and return it as server-rendered HTML.
 
 ## Task Group 4 — Start the Server
 
@@ -35,8 +37,8 @@
 1. Add a Vitest suite that calls the importable application without opening a network port.
 2. Verify `/health` returns status `200`, JSON content, and the agreed payload.
 3. Verify `/` returns status `200` and an HTML content type.
-4. Verify the home page contains the expected title, semantic layout, `AgentClinic` heading, opening message, and accessible search form.
-5. Verify `/static/style.css` returns status `200`, a CSS content type, and the expected page styles.
+4. Verify the home page contains viewport metadata, the expected title, semantic layout, `AgentClinic` heading, opening message, and accessible search form.
+5. Verify `/static/style.css` returns status `200`, a CSS content type, fluid sizing, and a narrow-screen breakpoint.
 6. Verify an unknown route returns `404`.
 
 ## Task Group 6 — Verify the Feature
@@ -45,4 +47,4 @@
 2. Run the production build.
 3. Run the automated test suite.
 4. Start the development server and smoke-test both routes.
-5. Open the home page in a modern browser and confirm that the complete HTML document renders meaningful content without client-side JavaScript.
+5. Open the home page at `375px` and `1280px` viewport widths and confirm that the complete HTML document renders meaningful, usable content without client-side JavaScript or horizontal scrolling.
