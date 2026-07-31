@@ -27,6 +27,17 @@ export function Header() {
           </svg>
         </button>
       </form>
+
+      <nav class="site-nav" aria-label="Primary navigation">
+        <ul>
+          <li>
+            <a href="/">Home</a>
+          </li>
+          <li>
+            <a href="/agents/patch">Patch</a>
+          </li>
+        </ul>
+      </nav>
     </header>
   );
 }

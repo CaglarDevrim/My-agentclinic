@@ -23,7 +23,7 @@ body {
 
 .site-header {
   display: grid;
-  grid-template-columns: minmax(max-content, 1fr) minmax(18rem, 620px) 1fr;
+  grid-template-columns: minmax(max-content, 1fr) minmax(18rem, 620px) minmax(max-content, 1fr);
   gap: 1.5rem;
   align-items: center;
   padding: 1rem clamp(1rem, 4vw, 3rem);
@@ -35,16 +35,49 @@ body {
   min-width: 0;
 }
 
-.site-header::after {
-  content: "";
-}
-
 .site-brand {
   width: max-content;
   color: #182230;
   font-size: 1.2rem;
   font-weight: 750;
   text-decoration: none;
+}
+
+.site-brand:focus-visible,
+.site-nav a:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 3px;
+}
+
+.site-nav {
+  justify-self: end;
+}
+
+.site-nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.site-nav a {
+  display: inline-flex;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.8rem;
+  align-items: center;
+  color: #334155;
+  font-weight: 650;
+  text-decoration: none;
+  border-radius: 0.6rem;
+}
+
+.site-nav a:hover {
+  color: #1d4ed8;
+  background: #eff6ff;
 }
 
 main {
@@ -58,6 +91,73 @@ h1 {
   margin-top: 0;
   font-size: clamp(2rem, 8vw, 4rem);
   overflow-wrap: anywhere;
+}
+
+.agent-profile {
+  text-align: left;
+}
+
+.agent-profile__header {
+  width: min(100%, 680px);
+  margin: 0 auto clamp(2rem, 6vw, 3.5rem);
+  text-align: center;
+}
+
+.agent-profile__summary {
+  margin: 0;
+  color: #475569;
+  font-size: clamp(1rem, 2.5vw, 1.2rem);
+  line-height: 1.7;
+}
+
+.eyebrow {
+  margin: 0 0 0.5rem;
+  color: #1d4ed8;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.care-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(1rem, 3vw, 1.5rem);
+}
+
+.care-card {
+  min-width: 0;
+  padding: clamp(1.25rem, 4vw, 2rem);
+  overflow-wrap: anywhere;
+  background: #ffffff;
+  border: 1px solid #dbe3ee;
+  border-radius: 1rem;
+  box-shadow: 0 1rem 2.5rem rgb(15 23 42 / 8%);
+}
+
+.care-card--therapy {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.care-card h2 {
+  margin: 0 0 1rem;
+  color: #182230;
+  font-size: clamp(1.35rem, 4vw, 2rem);
+}
+
+.care-card p:not(.eyebrow) {
+  margin: 0;
+  color: #475569;
+  line-height: 1.7;
+}
+
+.care-card .recommendation-reason {
+  padding-top: 1rem;
+  margin-top: 1rem;
+  color: #1e3a8a;
+  font-weight: 650;
+  border-top: 1px solid #bfdbfe;
 }
 
 .search-form {
@@ -161,8 +261,17 @@ h1 {
     gap: 1rem;
   }
 
-  .site-header::after {
-    display: none;
+  .site-nav {
+    justify-self: start;
+    width: 100%;
+  }
+
+  .site-nav ul {
+    justify-content: flex-start;
+  }
+
+  .care-grid {
+    grid-template-columns: 1fr;
   }
 }
 
