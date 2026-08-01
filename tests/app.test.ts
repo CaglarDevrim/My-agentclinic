@@ -1,22 +1,21 @@
-import type Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app.js";
-import { countFeedback, findFeedback, openDatabase } from "../src/db/index.js";
+import { countFeedback, findFeedback, openDatabase, type ClinicDatabase } from "../src/db/index.js";
 
 describe("AgentClinic routes", () => {
-  let database: Database.Database;
+  let database!: ClinicDatabase;
   let app: ReturnType<typeof createApp>;
   const logger = vi.fn();
 
-  beforeEach(() => {
-    database = openDatabase();
+  beforeEach(async () => {
+    database = await openDatabase();
     logger.mockReset();
     app = createApp(database, { logger, now: () => new Date("2026-08-01T12:00:00") });
   });
 
   afterEach(() => {
-    if (database.open) database.close();
+    if (database && !database.closed) database.close();
   });
 
   it("reports the exact health contract and logs the response", async () => {
@@ -89,14 +88,14 @@ describe("AgentClinic routes", () => {
   });
 
   it("returns accessible 422 errors without writing invalid appointments", async () => {
-    const before = (database.prepare("SELECT COUNT(*) AS count FROM appointments").get() as { count: number }).count;
+    const before = Number((await database.execute("SELECT COUNT(*) AS count FROM appointments")).rows[0].count);
     const response = await app.request("/agents/1/appointments", { method: "POST", body: new URLSearchParams({ therapistName: "", date: "2025-01-01", time: "10:00" }) });
     const html = await response.text();
     expect(response.status).toBe(422);
     expect(html).toContain('role="alert"');
     expect(html).toContain('aria-invalid="true"');
     expect(html).toContain("Choose an appointment in the future.");
-    const after = (database.prepare("SELECT COUNT(*) AS count FROM appointments").get() as { count: number }).count;
+    const after = Number((await database.execute("SELECT COUNT(*) AS count FROM appointments")).rows[0].count);
     expect(after).toBe(before);
   });
 
@@ -176,7 +175,7 @@ describe("AgentClinic routes", () => {
     });
     const html = await response.text();
     expect(response.status).toBe(422);
-    expect(countFeedback(database)).toBe(0);
+    expect(await countFeedback(database)).toBe(0);
     expect(html).toContain('role="alert"');
     expect(html).toContain('aria-invalid="true"');
     expect(html).toContain('&lt;b&gt;Patch&lt;/b&gt;');
@@ -191,8 +190,8 @@ describe("AgentClinic routes", () => {
     });
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe("/feedback/thanks");
-    expect(countFeedback(database)).toBe(1);
-    expect(findFeedback(database, 1)).toMatchObject({ name: "Patch", email: "patch@example.com", rating: 5, public_consent: 1 });
+    expect(await countFeedback(database)).toBe(1);
+    expect(await findFeedback(database, 1)).toMatchObject({ name: "Patch", email: "patch@example.com", rating: 5, public_consent: 1 });
 
     const confirmation = await app.request("/feedback/thanks");
     const html = await confirmation.text();
@@ -201,7 +200,7 @@ describe("AgentClinic routes", () => {
     expect(html).not.toContain("patch@example.com");
     expect(html).not.toContain("A calm and restorative clinic visit.");
     await app.request("/feedback/thanks");
-    expect(countFeedback(database)).toBe(1);
+    expect(await countFeedback(database)).toBe(1);
     expect(logger.mock.calls.flat().join(" ")).not.toContain("patch@example.com");
   });
 
@@ -213,13 +212,13 @@ describe("AgentClinic routes", () => {
     duplicateRating.append("rating", "4");
     duplicateRating.append("rating", "5");
     expect((await app.request("/feedback", { method: "POST", body: duplicateRating })).status).toBe(422);
-    expect(countFeedback(database)).toBe(0);
+    expect(await countFeedback(database)).toBe(0);
 
     const unsupportedConsent = await app.request("/feedback", {
       method: "POST",
       body: new URLSearchParams({ name: "Patch", email: "patch@example.com", message: "A calm and restorative clinic visit.", rating: "5", publicConsent: "true" }),
     });
     expect(unsupportedConsent.status).toBe(303);
-    expect(findFeedback(database, 1)?.public_consent).toBe(0);
+    expect((await findFeedback(database, 1))?.public_consent).toBe(0);
   });
 });
