@@ -10,7 +10,10 @@ export function AgentPage({ agent }: AgentPageProps) {
   const therapy = ailment.recommendedTherapy;
 
   return (
-    <Layout title={`${agent.name} | AgentClinic`}>
+    <Layout
+      title={`${agent.name} | AgentClinic`}
+      activePath="/agents/patch"
+    >
       <article class="agent-profile">
         <header class="agent-profile__header">
           <p class="eyebrow">Agent profile</p>

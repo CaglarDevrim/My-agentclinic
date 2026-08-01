@@ -13,7 +13,7 @@ AgentClinic is a server-rendered TypeScript web application. The stack favors re
 | Styling | Plain CSS with custom properties | Keeps the browser experience fast and the visual system easy to maintain |
 | Data store | SQLite with `better-sqlite3` | Provides durable local data with minimal infrastructure |
 | Database changes | Versioned SQL migrations | Keeps schema evolution explicit and reviewable |
-| Testing | Vitest | Fast, TypeScript-friendly tests with a familiar API |
+| Testing | Vitest and Playwright | Vitest covers routes and domain behavior; Playwright verifies compiled browser behavior at required viewports |
 | Development | `tsx` | Runs TypeScript directly during development |
 | Production build | `tsc` | Creates checked JavaScript output for Node.js |
 
@@ -32,8 +32,10 @@ AgentClinic is a server-rendered TypeScript web application. The stack favors re
 - Use Vitest in its Node environment for automated validation.
 - Import the Hono application and call `app.request()` so route tests do not open a network port.
 - Cover response status, content type, payload, semantic page structure, and static assets.
+- Use Playwright against the compiled application for responsive layout, navigation, focus, and production-server checks.
+- Run browser checks at the required `375px` and `1280px` viewport widths.
 - Keep the network-listening server entry point separate from the importable application.
-- Run the complete suite non-interactively with `npm test`.
+- Run the complete validation suite non-interactively with `npm run validate`.
 
 ## Initial Constraints
 

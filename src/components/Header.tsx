@@ -1,4 +1,8 @@
-export function Header() {
+interface HeaderProps {
+  activePath: "/" | "/agents/patch";
+}
+
+export function Header({ activePath }: HeaderProps) {
   return (
     <header class="site-header">
       <a class="site-brand" href="/">
@@ -31,10 +35,22 @@ export function Header() {
       <nav class="site-nav" aria-label="Primary navigation">
         <ul>
           <li>
-            <a href="/">Home</a>
+            <a
+              href="/"
+              aria-current={activePath === "/" ? "page" : undefined}
+            >
+              Home
+            </a>
           </li>
           <li>
-            <a href="/agents/patch">Patch</a>
+            <a
+              href="/agents/patch"
+              aria-current={
+                activePath === "/agents/patch" ? "page" : undefined
+              }
+            >
+              Patch
+            </a>
           </li>
         </ul>
       </nav>

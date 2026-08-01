@@ -6,9 +6,14 @@ import { Main } from "./Main.js";
 
 type LayoutProps = PropsWithChildren<{
   title?: string;
+  activePath?: "/" | "/agents/patch";
 }>;
 
-export function Layout({ children, title = "AgentClinic" }: LayoutProps) {
+export function Layout({
+  children,
+  title = "AgentClinic",
+  activePath = "/",
+}: LayoutProps) {
   return (
     <html lang="en">
       <head>
@@ -18,7 +23,7 @@ export function Layout({ children, title = "AgentClinic" }: LayoutProps) {
         <link rel="stylesheet" href="/static/style.css" />
       </head>
       <body>
-        <Header />
+        <Header activePath={activePath} />
         <Main>{children}</Main>
         <Footer />
       </body>

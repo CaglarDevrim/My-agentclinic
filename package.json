@@ -7,15 +7,18 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.playwright.json",
     "build": "tsc --project tsconfig.build.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:browser": "npm run build && playwright test",
+    "validate": "npm run typecheck && npm test && npm run test:browser"
   },
   "dependencies": {
-    "@hono/node-server": "^1.19.9",
+    "@hono/node-server": "^2.0.12",
     "hono": "^4.10.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^24.10.1",
     "tsx": "^4.21.0",
     "typescript": "^5.5.3",

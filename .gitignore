@@ -10,3 +10,6 @@ yarn-error.log*
 .pnp.js
 
 .vscode/*
+/.idea/
+/playwright-report/
+/test-results/

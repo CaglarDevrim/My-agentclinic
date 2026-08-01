@@ -23,10 +23,10 @@ body {
 
 .site-header {
   display: grid;
-  grid-template-columns: minmax(max-content, 1fr) minmax(18rem, 620px) minmax(max-content, 1fr);
-  gap: 1.5rem;
+  grid-template-columns: 1fr;
+  gap: 1rem;
   align-items: center;
-  padding: 1rem clamp(1rem, 4vw, 3rem);
+  padding: 0.75rem;
   background: #ffffff;
   border-bottom: 1px solid #e2e8f0;
 }
@@ -45,12 +45,13 @@ body {
 
 .site-brand:focus-visible,
 .site-nav a:focus-visible {
-  outline: 3px solid #93c5fd;
+  outline: 3px solid #1d4ed8;
   outline-offset: 3px;
 }
 
 .site-nav {
-  justify-self: end;
+  justify-self: start;
+  width: 100%;
 }
 
 .site-nav ul {
@@ -58,7 +59,7 @@ body {
   flex-wrap: wrap;
   gap: 0.25rem;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   padding: 0;
   margin: 0;
   list-style: none;
@@ -80,10 +81,18 @@ body {
   background: #eff6ff;
 }
 
+.site-nav a[aria-current="page"] {
+  color: #1e3a8a;
+  text-decoration: underline;
+  text-decoration-thickness: 0.15rem;
+  text-underline-offset: 0.35rem;
+  background: #dbeafe;
+}
+
 main {
-  width: min(100% - 2rem, 960px);
+  width: min(100% - 1.5rem, 960px);
   margin-inline: auto;
-  padding-block: clamp(3rem, 10vh, 7rem);
+  padding-block: 3rem;
   text-align: center;
 }
 
@@ -121,7 +130,7 @@ h1 {
 
 .care-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: clamp(1rem, 3vw, 1.5rem);
 }
 
@@ -166,7 +175,7 @@ h1 {
   min-width: 0;
   width: 100%;
   margin: 0;
-  padding: 0.4rem;
+  padding: 0.3rem;
   background: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 0.8rem;
@@ -183,8 +192,8 @@ h1 {
 .search-form input {
   flex: 1;
   min-width: 0;
-  height: 3.25rem;
-  padding: 0 1rem;
+  height: 3rem;
+  padding: 0 0.75rem;
   font: inherit;
   font-size: 1rem;
   color: inherit;
@@ -199,9 +208,9 @@ h1 {
 
 .search-form button {
   display: grid;
-  flex: 0 0 3.25rem;
-  width: 3.25rem;
-  height: 3.25rem;
+  flex: 0 0 3rem;
+  width: 3rem;
+  height: 3rem;
   padding: 0;
   place-items: center;
   color: #ffffff;
@@ -220,7 +229,7 @@ h1 {
 }
 
 .search-form button:focus-visible {
-  outline: 3px solid #93c5fd;
+  outline: 3px solid #1d4ed8;
   outline-offset: 3px;
 }
 
@@ -255,48 +264,48 @@ h1 {
   margin: 0;
 }
 
-@media (max-width: 720px) {
+@media (min-width: 481px) {
   .site-header {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-
-  .site-nav {
-    justify-self: start;
-    width: 100%;
-  }
-
-  .site-nav ul {
-    justify-content: flex-start;
-  }
-
-  .care-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 480px) {
-  .site-header {
-    padding: 0.75rem;
+    padding: 1rem clamp(1rem, 4vw, 3rem);
   }
 
   main {
-    width: min(100% - 1.5rem, 960px);
-    padding-block: 3rem;
+    width: min(100% - 2rem, 960px);
+    padding-block: clamp(3rem, 10vh, 7rem);
   }
 
   .search-form {
-    padding: 0.3rem;
+    padding: 0.4rem;
   }
 
   .search-form input {
-    height: 3rem;
-    padding-inline: 0.75rem;
+    height: 3.25rem;
+    padding-inline: 1rem;
   }
 
   .search-form button {
-    flex-basis: 3rem;
-    width: 3rem;
-    height: 3rem;
+    flex-basis: 3.25rem;
+    width: 3.25rem;
+    height: 3.25rem;
+  }
+}
+
+@media (min-width: 721px) {
+  .site-header {
+    grid-template-columns: minmax(max-content, 1fr) minmax(18rem, 620px) minmax(max-content, 1fr);
+    gap: 1.5rem;
+  }
+
+  .site-nav {
+    justify-self: end;
+    width: auto;
+  }
+
+  .site-nav ul {
+    justify-content: flex-end;
+  }
+
+  .care-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

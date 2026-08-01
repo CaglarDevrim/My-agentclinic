@@ -30,7 +30,7 @@ if (relativeProject.startsWith(`..${sep}`) || relativeProject === "..") {
 
 const pathspec = relativeProject
   ? `:(top)${relativeProject.split(sep).join("/")}`
-  : ":(top).";
+  : ".";
 const log = git([
   "log",
   "--date=short",

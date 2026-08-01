@@ -2,9 +2,15 @@
 
 All required checks must pass before `feature/agent-care-discovery` can be merged.
 
+After installing Chromium once as described below, run the complete automated merge gate with:
+
+```sh
+npm run validate
+```
+
 ## 1. Static Validation
 
-Run from `my-agentclinic`:
+Run from the repository root:
 
 ```sh
 npm run typecheck
@@ -56,10 +62,11 @@ Success means all tests pass and demonstrate:
 
 ## 4. Running-Server Smoke Test
 
-Start the application:
+Build and start the compiled application:
 
 ```sh
-npm run dev
+npm run build
+npm start
 ```
 
 Then verify:
@@ -78,7 +85,30 @@ Success means:
 - Patch's page returns the required server-rendered care recommendation.
 - Following the rendered Home and Patch links moves between the two available pages.
 
-## 5. Browser and Accessibility Validation
+## 5. Automated Browser Validation
+
+Install the Playwright browser once when setting up the repository:
+
+```sh
+npx playwright install chromium
+```
+
+Run:
+
+```sh
+npm run test:browser
+```
+
+Success means the compiled application starts and the browser checks pass at `375px` and `1280px`, demonstrating:
+
+- The page has no horizontal overflow.
+- Navigation links are visible, usable, and move between Home and Patch.
+- The current page is exposed semantically and visually.
+- Navigation links retain a minimum `44px` target height.
+- Keyboard focus uses the expected high-contrast outline.
+- Care cards stack on mobile and use two columns on desktop.
+
+## 6. Manual Browser and Accessibility Validation
 
 Open `/agents/patch` in a current major browser.
 
@@ -104,7 +134,7 @@ Verify at `1280px` viewport width:
 - Agent and care content use a bounded readable width.
 - Navigation, content, and footer use the available space without excessive stretching.
 
-## 6. Scope Validation
+## 7. Scope Validation
 
 Confirm the implementation does not add:
 
