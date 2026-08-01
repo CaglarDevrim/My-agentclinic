@@ -1,0 +1,9 @@
+CREATE TABLE feedback (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 100),
+  email TEXT NOT NULL CHECK (length(email) BETWEEN 3 AND 254),
+  message TEXT NOT NULL CHECK (length(message) BETWEEN 10 AND 2000),
+  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  public_consent INTEGER NOT NULL DEFAULT 0 CHECK (public_consent IN (0, 1)),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

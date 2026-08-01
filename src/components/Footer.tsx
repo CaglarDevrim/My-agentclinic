@@ -1,7 +1,12 @@
 export function Footer() {
   return (
     <footer class="site-footer">
-      <p>&copy; {new Date().getFullYear()} AgentClinic</p>
+      <div class="site-footer__inner">
+        <p>&copy; {new Date().getFullYear()} AgentClinic</p>
+        <nav aria-label="Footer navigation">
+          <a href="/feedback">Feedback</a>
+        </nav>
+      </div>
     </footer>
   );
 }

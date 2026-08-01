@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
 
 import { migrateDatabase } from "./migrate.js";
 import { seedDatabase } from "./seed.js";
-import type { AgentDetail, AgentRecord, AilmentRecord, AilmentSummary, AppointmentRecord, DashboardData, TherapyRecord, TherapySummary } from "./types.js";
+import type { AgentDetail, AgentRecord, AilmentRecord, AilmentSummary, AppointmentRecord, DashboardData, FeedbackInput, FeedbackRecord, TherapyRecord, TherapySummary } from "./types.js";
 
 export function openDatabase(filename = ":memory:"): Database.Database {
   if (filename !== ":memory:") mkdirSync(dirname(filename), { recursive: true });
@@ -59,4 +59,24 @@ export function getDashboard(db: Database.Database): DashboardData {
   const appointments = db.prepare(`SELECT ap.id, ap.agent_id, ag.name AS agent_name, ap.therapist_name, ap.scheduled_at, ap.status, ap.created_at FROM appointments ap JOIN agents ag ON ag.id = ap.agent_id WHERE ap.status IN ('pending', 'confirmed') ORDER BY ap.scheduled_at, ap.id`).all() as AppointmentRecord[];
   const ailments = db.prepare(`SELECT a.id, a.name, a.description, COUNT(aa.agent_id) AS agent_count FROM ailments a LEFT JOIN agent_ailments aa ON aa.ailment_id = a.id GROUP BY a.id ORDER BY a.name`).all() as Array<AilmentRecord & { agent_count: number }>;
   return { totalAgents, openAppointments, activeAilments, agents: listAgents(db), appointments, ailments };
+}
+
+export function createFeedback(db: Database.Database, input: FeedbackInput): number {
+  const result = db.prepare(`
+    INSERT INTO feedback (name, email, message, rating, public_consent)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(input.name, input.email, input.message, input.rating, input.publicConsent ? 1 : 0);
+  return Number(result.lastInsertRowid);
+}
+
+export function findFeedback(db: Database.Database, id: number): FeedbackRecord | undefined {
+  return db.prepare(`
+    SELECT id, name, email, message, rating, public_consent, created_at
+    FROM feedback
+    WHERE id = ?
+  `).get(id) as FeedbackRecord | undefined;
+}
+
+export function countFeedback(db: Database.Database): number {
+  return (db.prepare("SELECT COUNT(*) AS count FROM feedback").get() as { count: number }).count;
 }

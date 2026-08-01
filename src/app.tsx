@@ -3,11 +3,13 @@ import type Database from "better-sqlite3";
 import { Hono } from "hono";
 import { jsxRenderer } from "hono/jsx-renderer";
 
-import { createAppointment, findAgent, findAppointment, getDashboard, listAgents, listAilments, listTherapies, openDatabase } from "./db/index.js";
+import { createAppointment, createFeedback, findAgent, findAppointment, getDashboard, listAgents, listAilments, listTherapies, openDatabase } from "./db/index.js";
 import { findAgentBySlug } from "./domain/care.js";
+import { validateFeedback, type FeedbackValues } from "./domain/feedback.js";
 import { AgentPage } from "./pages/AgentPage.js";
 import { AgentDetailPage, AgentsPage, AilmentsPage, AppointmentConfirmationPage, AppointmentFormPage, DashboardPage, ErrorPage, TherapiesPage, type AppointmentErrors, type AppointmentValues } from "./pages/ClinicPages.js";
 import { HomePage } from "./pages/HomePage.js";
+import { FeedbackPage, FeedbackThanksPage } from "./pages/FeedbackPage.js";
 
 export type RequestLogger = (message: string) => void;
 
@@ -54,6 +56,30 @@ export function createApp(db: Database.Database, options: { logger?: RequestLogg
   app.get("/ailments", (context) => context.render(<AilmentsPage ailments={listAilments(db)} />));
   app.get("/therapies", (context) => context.render(<TherapiesPage therapies={listTherapies(db)} />));
   app.get("/dashboard", (context) => context.render(<DashboardPage data={getDashboard(db)} />));
+  app.get("/feedback", (context) => context.render(<FeedbackPage />));
+  app.get("/feedback/thanks", (context) => context.render(<FeedbackThanksPage />));
+  app.post("/feedback", async (context) => {
+    const formData = await context.req.raw.formData();
+    const singleValue = (name: string): string => {
+      const values = formData.getAll(name);
+      return values.length === 1 && typeof values[0] === "string" ? values[0] : "";
+    };
+    const consentValues = formData.getAll("publicConsent");
+    const values: FeedbackValues = {
+      name: singleValue("name"),
+      email: singleValue("email"),
+      message: singleValue("message"),
+      rating: singleValue("rating"),
+      publicConsent: consentValues.length === 1 && consentValues[0] === "yes",
+    };
+    const result = validateFeedback(values);
+    if (!result.input) {
+      context.status(422);
+      return context.render(<FeedbackPage errors={result.errors} values={result.values} />);
+    }
+    createFeedback(db, result.input);
+    return context.redirect("/feedback/thanks", 303);
+  });
 
   app.get("/agents/:agentId", (context) => {
     const value = context.req.param("agentId");

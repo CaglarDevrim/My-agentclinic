@@ -44,7 +44,8 @@ a:hover {
 
 a:focus-visible,
 button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+textarea:focus-visible {
   outline: 3px solid var(--link-hover);
   outline-offset: 3px;
 }
@@ -385,7 +386,8 @@ tbody th {
   font-weight: 650;
 }
 
-.appointment-form input {
+.appointment-form > input,
+.appointment-form > textarea {
   width: 100%;
   min-height: 2.65rem;
   padding: 0.55rem 0.65rem;
@@ -397,8 +399,81 @@ tbody th {
   border-radius: 0.3rem;
 }
 
-.appointment-form input[aria-invalid="true"] {
+.appointment-form > textarea {
+  min-height: 9rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.appointment-form > input[aria-invalid="true"],
+.appointment-form > textarea[aria-invalid="true"] {
   border-color: var(--danger);
+}
+
+.field-hint {
+  margin: 0.1rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.rating-fieldset {
+  padding: 0;
+  margin: 1.1rem 0 0;
+  border: 0;
+}
+
+.rating-fieldset legend {
+  margin-bottom: 0.65rem;
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.rating-options {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.rating-option,
+.consent-option {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.rating-option {
+  margin-top: 0;
+  min-height: 2.4rem;
+  padding: 0.5rem 0.65rem;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+}
+
+.rating-option:has(input:checked) {
+  border-color: var(--link);
+}
+
+.rating-option input,
+.consent-option input {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  margin: 0.15rem 0 0;
+  accent-color: var(--link);
+}
+
+.consent-option {
+  margin-top: 1.1rem !important;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.feedback-thanks {
+  width: min(100%, 560px);
 }
 
 .field-error {
@@ -545,6 +620,14 @@ tbody th {
 
 .site-footer p {
   margin: 0;
+}
+
+.site-footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  align-items: center;
+  justify-content: space-between;
 }
 
 @media (min-width: 641px) {
