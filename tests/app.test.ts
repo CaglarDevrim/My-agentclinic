@@ -2,7 +2,7 @@ import type Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app.js";
-import { openDatabase } from "../src/db/index.js";
+import { countFeedback, findFeedback, openDatabase } from "../src/db/index.js";
 
 describe("AgentClinic routes", () => {
   let database: Database.Database;
@@ -156,5 +156,70 @@ describe("AgentClinic routes", () => {
     expect(css).toContain('a[aria-current="page"]');
     expect(css).not.toContain("@media (max-width:");
     expect(css).not.toContain(".search-form");
+  });
+
+  it("renders the feedback form and site-wide footer entry", async () => {
+    const response = await app.request("/feedback");
+    const html = await response.text();
+    expect(response.status).toBe(200);
+    expect(html).toContain('<form class="appointment-form feedback-form" method="post" action="/feedback"');
+    for (const label of ["Name", "Email", "Message", "Rating"]) expect(html).toContain(label);
+    expect(html).toContain('name="publicConsent" type="checkbox" value="yes"');
+    expect(html).not.toContain('name="publicConsent" type="checkbox" value="yes" checked');
+    expect(html).toContain('<nav aria-label="Footer navigation"><a href="/feedback">Feedback</a></nav>');
+  });
+
+  it("returns accessible 422 feedback errors without persistence", async () => {
+    const response = await app.request("/feedback", {
+      method: "POST",
+      body: new URLSearchParams({ name: " <b>Patch</b> ", email: "bad", message: "short", rating: "6", publicConsent: "yes" }),
+    });
+    const html = await response.text();
+    expect(response.status).toBe(422);
+    expect(countFeedback(database)).toBe(0);
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('aria-invalid="true"');
+    expect(html).toContain('&lt;b&gt;Patch&lt;/b&gt;');
+    expect(html).not.toContain(" <b>Patch</b> ");
+    expect(html).toContain('name="publicConsent" type="checkbox" value="yes" checked');
+  });
+
+  it("persists feedback once and redirects to a private generic confirmation", async () => {
+    const response = await app.request("/feedback", {
+      method: "POST",
+      body: new URLSearchParams({ name: " Patch ", email: " PATCH@Example.COM ", message: " A calm and restorative clinic visit. ", rating: "5", publicConsent: "yes" }),
+    });
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("/feedback/thanks");
+    expect(countFeedback(database)).toBe(1);
+    expect(findFeedback(database, 1)).toMatchObject({ name: "Patch", email: "patch@example.com", rating: 5, public_consent: 1 });
+
+    const confirmation = await app.request("/feedback/thanks");
+    const html = await confirmation.text();
+    expect(confirmation.status).toBe(200);
+    expect(html).toContain("Thank you for your feedback");
+    expect(html).not.toContain("patch@example.com");
+    expect(html).not.toContain("A calm and restorative clinic visit.");
+    await app.request("/feedback/thanks");
+    expect(countFeedback(database)).toBe(1);
+    expect(logger.mock.calls.flat().join(" ")).not.toContain("patch@example.com");
+  });
+
+  it("rejects duplicate required fields and treats unsupported consent as private", async () => {
+    const duplicateRating = new FormData();
+    duplicateRating.append("name", "Patch");
+    duplicateRating.append("email", "patch@example.com");
+    duplicateRating.append("message", "A calm and restorative clinic visit.");
+    duplicateRating.append("rating", "4");
+    duplicateRating.append("rating", "5");
+    expect((await app.request("/feedback", { method: "POST", body: duplicateRating })).status).toBe(422);
+    expect(countFeedback(database)).toBe(0);
+
+    const unsupportedConsent = await app.request("/feedback", {
+      method: "POST",
+      body: new URLSearchParams({ name: "Patch", email: "patch@example.com", message: "A calm and restorative clinic visit.", rating: "5", publicConsent: "true" }),
+    });
+    expect(unsupportedConsent.status).toBe(303);
+    expect(findFeedback(database, 1)?.public_consent).toBe(0);
   });
 });

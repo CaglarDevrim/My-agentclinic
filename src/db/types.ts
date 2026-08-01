@@ -54,3 +54,21 @@ export interface DashboardData {
   appointments: AppointmentRecord[];
   ailments: Array<AilmentRecord & { agent_count: number }>;
 }
+
+export interface FeedbackInput {
+  name: string;
+  email: string;
+  message: string;
+  rating: number;
+  publicConsent: boolean;
+}
+
+export interface FeedbackRecord {
+  id: number;
+  name: string;
+  email: string;
+  message: string;
+  rating: number;
+  public_consent: 0 | 1;
+  created_at: string;
+}

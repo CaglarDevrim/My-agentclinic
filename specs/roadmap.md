@@ -15,7 +15,7 @@ Responsive behavior, accessibility, server-side validation, persistence tests, a
 - Staff dashboard with clinic summaries and open appointments
 - Branded error pages, request logging, security checks, and automated validation
 
-## Phase 1 — Feedback Form
+## Phase 1 — Feedback Form ✅
 
 - Add the minimal feedback persistence model and ordered migration
 - Add a public feedback form using established server-rendered patterns

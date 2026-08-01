@@ -84,3 +84,35 @@ test("preserves Patch and blocks encoded Windows traversal", async ({ page, requ
   expect(response.status()).toBe(404);
   expect(await response.text()).not.toContain('"name": "agentclinic"');
 });
+
+test("submits private feedback through an accessible responsive journey", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("navigation", { name: "Footer navigation" }).getByRole("link", { name: "Feedback" }).click();
+  await expect(page).toHaveURL("/feedback");
+  await expect(page.getByRole("heading", { level: 1, name: "Feedback" })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: /future public review/i })).not.toBeChecked();
+
+  await page.getByRole("button", { name: "Send feedback" }).click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.locator("#name-error")).toBeVisible();
+  await expect(page.locator("#email-error")).toBeVisible();
+  await expect(page.locator("#message-error")).toBeVisible();
+  await expect(page.locator("#rating-error")).toBeVisible();
+
+  await page.getByLabel("Name").fill("Browser Agent");
+  await page.getByLabel("Email").fill("browser.agent@example.com");
+  await page.getByLabel("Message").fill("The clinic experience was calm, clear, and restorative.");
+  await page.getByRole("radio", { name: "5 - Fully recharged" }).check();
+  await page.getByRole("checkbox", { name: /future public review/i }).check();
+  await page.getByRole("button", { name: "Send feedback" }).click();
+
+  await expect(page).toHaveURL("/feedback/thanks");
+  await expect(page.getByRole("heading", { level: 1, name: "Thank you for your feedback" })).toBeVisible();
+  await expect(page.getByText("browser.agent@example.com")).toHaveCount(0);
+  await expect(page.getByText("The clinic experience was calm, clear, and restorative.")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1, name: "Thank you for your feedback" })).toBeVisible();
+
+  const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(hasHorizontalOverflow).toBe(false);
+});
