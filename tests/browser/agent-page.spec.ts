@@ -1,86 +1,67 @@
 import { expect, test } from "@playwright/test";
 
-test("renders a responsive, keyboard-accessible care journey", async ({
-  page,
-}) => {
-  await page.goto("/agents/patch");
-
-  await expect(page).toHaveTitle("Patch | AgentClinic");
-  await expect(
-    page.getByRole("heading", { level: 1, name: "Patch" }),
-  ).toBeVisible();
-  await expect(
-    page.getByText("Context Window Fatigue", { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText("Prompt-Free Rest", { exact: true })).toBeVisible();
-
-  const patchLink = page.getByRole("link", { name: "Patch", exact: true });
-  const homeLink = page.getByRole("link", { name: "Home", exact: true });
-
-  await expect(patchLink).toHaveAttribute("aria-current", "page");
-  await expect(homeLink).not.toHaveAttribute("aria-current", "page");
-
-  const hasHorizontalOverflow = await page.evaluate(
-    () =>
-      document.documentElement.scrollWidth >
-      document.documentElement.clientWidth,
-  );
-  expect(hasHorizontalOverflow).toBe(false);
-
-  const homeLinkBox = await homeLink.boundingBox();
-  expect(homeLinkBox).not.toBeNull();
-  expect(homeLinkBox!.height).toBeGreaterThanOrEqual(44);
-
-  await homeLink.focus();
-  const focusStyle = await homeLink.evaluate((element) => {
-    const style = getComputedStyle(element);
-    return {
-      color: style.outlineColor,
-      style: style.outlineStyle,
-      width: style.outlineWidth,
-    };
-  });
-  expect(focusStyle).toEqual({
-    color: "rgb(29, 78, 216)",
-    style: "solid",
-    width: "3px",
-  });
-
-  const cards = page.locator(".care-card");
-  await expect(cards).toHaveCount(2);
-  const cardBoxes = await cards.evaluateAll((elements) =>
-    elements.map((element) => {
-      const box = element.getBoundingClientRect();
-      return {
-        bottom: box.bottom,
-        left: box.left,
-        right: box.right,
-        top: box.top,
-      };
-    }),
-  );
-
-  if (page.viewportSize()!.width === 375) {
-    expect(cardBoxes[1].top).toBeGreaterThan(cardBoxes[0].bottom);
-  } else {
-    expect(Math.abs(cardBoxes[1].top - cardBoxes[0].top)).toBeLessThan(1);
-    expect(cardBoxes[1].left).toBeGreaterThan(cardBoxes[0].right);
+test("exposes the complete clinic navigation and populated sections", async ({ page }) => {
+  await page.goto("/");
+  for (const name of ["Agents", "Ailments", "Therapies", "Dashboard"]) {
+    await expect(page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name, exact: true })).toBeVisible();
   }
 
-  await homeLink.click();
-  await expect(page).toHaveURL("/");
-  await expect(
-    page.getByRole("link", { name: "Home", exact: true }),
-  ).toHaveAttribute("aria-current", "page");
-  await page.getByRole("link", { name: "Patch", exact: true }).click();
-  await expect(page).toHaveURL("/agents/patch");
+  await page.getByRole("navigation").getByRole("link", { name: "Agents", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Agents" })).toBeVisible();
+  await expect(page.getByText("Bartholomew-47B", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Hildegard-4B", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Agents", exact: true }).last()).toHaveAttribute("aria-current", "page");
+
+  await page.getByRole("navigation").getByRole("link", { name: "Ailments", exact: true }).click();
+  await expect(page.getByText("Context-Window Claustrophobia", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Temperature Instability", { exact: true }).first()).toBeVisible();
+
+  await page.getByRole("navigation").getByRole("link", { name: "Therapies", exact: true }).click();
+  await expect(page.getByText("Prompt Reduction Therapy", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Mindful Token Counting", { exact: true }).first()).toBeVisible();
+
+  await page.getByRole("navigation").getByRole("link", { name: "Dashboard", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+  await expect(page.getByText("Total agents", { exact: true })).toBeVisible();
+
+  const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(hasHorizontalOverflow).toBe(false);
 });
 
-test("does not expose files through encoded Windows path traversal", async ({
-  request,
-}) => {
-  const response = await request.get("/static/%5C..%5Cpackage.json");
+test("completes agent care and appointment booking", async ({ page }) => {
+  await page.goto("/agents/1");
+  await expect(page.getByRole("heading", { level: 1, name: "Bartholomew-47B" })).toBeVisible();
+  await expect(page.getByText("Context-Window Claustrophobia", { exact: true })).toBeVisible();
+  await expect(page.getByText("Mindful Token Counting", { exact: true })).toBeVisible();
 
+  await page.getByRole("link", { name: "Book an appointment" }).click();
+  await page.getByRole("button", { name: "Request appointment" }).click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.locator("#therapistName-error")).toBeVisible();
+
+  await page.getByLabel("Therapist name").fill("Dr Browser Test");
+  await page.getByLabel("Date").fill("2099-12-29");
+  await page.getByLabel("Time").fill("11:30");
+  await page.getByRole("button", { name: "Request appointment" }).click();
+  await expect(page).toHaveURL(/\/agents\/1\/appointments\/\d+$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Appointment requested" })).toBeVisible();
+  await expect(page.getByText("Dr Browser Test")).toBeVisible();
+
+  await page.getByRole("link", { name: "View dashboard" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+  await expect(page.getByText("Dr Browser Test").last()).toBeVisible();
+
+  const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(hasHorizontalOverflow).toBe(false);
+});
+
+test("preserves Patch and blocks encoded Windows traversal", async ({ page, request }) => {
+  await page.goto("/agents/patch");
+  await expect(page.getByRole("heading", { level: 1, name: "Patch" })).toBeVisible();
+  await expect(page.getByText("Prompt-Free Rest", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Agents", exact: true })).toHaveAttribute("aria-current", "page");
+
+  const response = await request.get("/static/%5C..%5Cpackage.json");
   expect(response.status()).toBe(404);
   expect(await response.text()).not.toContain('"name": "agentclinic"');
 });

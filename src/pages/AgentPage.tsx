@@ -12,7 +12,7 @@ export function AgentPage({ agent }: AgentPageProps) {
   return (
     <Layout
       title={`${agent.name} | AgentClinic`}
-      activePath="/agents/patch"
+      activePath="/agents"
     >
       <article class="agent-profile">
         <header class="agent-profile__header">
@@ -38,6 +38,7 @@ export function AgentPage({ agent }: AgentPageProps) {
             <p class="recommendation-reason">{ailment.recommendation}</p>
           </section>
         </div>
+        <p class="page-actions"><a class="button" href="/agents">Browse clinic agents</a></p>
       </article>
     </Layout>
   );

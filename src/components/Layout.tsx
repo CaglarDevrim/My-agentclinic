@@ -1,12 +1,12 @@
 import type { PropsWithChildren } from "hono/jsx";
 
 import { Footer } from "./Footer.js";
-import { Header } from "./Header.js";
+import { Header, type ActiveSection } from "./Header.js";
 import { Main } from "./Main.js";
 
 type LayoutProps = PropsWithChildren<{
   title?: string;
-  activePath?: "/" | "/agents/patch";
+  activePath?: ActiveSection;
 }>;
 
 export function Layout({

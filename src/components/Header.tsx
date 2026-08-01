@@ -1,6 +1,6 @@
-interface HeaderProps {
-  activePath: "/" | "/agents/patch";
-}
+export type ActiveSection = "/" | "/agents" | "/ailments" | "/therapies" | "/dashboard";
+
+interface HeaderProps { activePath: ActiveSection; }
 
 export function Header({ activePath }: HeaderProps) {
   return (
@@ -9,7 +9,7 @@ export function Header({ activePath }: HeaderProps) {
         AgentClinic
       </a>
 
-      <form class="search-form" role="search" action="/" method="get">
+      <form class="search-form" role="search" action="/agents" method="get">
         <label class="visually-hidden" for="clinic-search">
           AgentClinic'te ara
         </label>
@@ -42,16 +42,16 @@ export function Header({ activePath }: HeaderProps) {
               Home
             </a>
           </li>
-          <li>
-            <a
-              href="/agents/patch"
-              aria-current={
-                activePath === "/agents/patch" ? "page" : undefined
-              }
-            >
-              Patch
-            </a>
-          </li>
+          {[
+            ["/agents", "Agents"],
+            ["/ailments", "Ailments"],
+            ["/therapies", "Therapies"],
+            ["/dashboard", "Dashboard"],
+          ].map(([href, label]) => (
+            <li>
+              <a href={href} aria-current={activePath === href ? "page" : undefined}>{label}</a>
+            </li>
+          ))}
         </ul>
       </nav>
     </header>
