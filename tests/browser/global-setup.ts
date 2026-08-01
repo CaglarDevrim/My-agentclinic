@@ -1,11 +1,17 @@
 import { spawn } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const port = 3100;
 
 export default async function startProductionServer() {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "agentclinic-browser-"));
+  const databasePath = join(temporaryDirectory, "clinic.sqlite");
   const server = spawn(process.execPath, ["dist/index.js"], {
     env: {
       ...process.env,
+      AGENTCLINIC_DB: databasePath,
       PORT: String(port),
     },
     stdio: ["ignore", "ignore", "pipe"],
@@ -20,6 +26,7 @@ export default async function startProductionServer() {
   let ready = false;
   for (let attempt = 0; attempt < 50; attempt += 1) {
     if (server.exitCode !== null) {
+      rmSync(temporaryDirectory, { force: true, recursive: true });
       throw new Error(`Production server exited before startup.\n${stderr}`);
     }
 
@@ -38,11 +45,13 @@ export default async function startProductionServer() {
 
   if (!ready) {
     server.kill();
+    rmSync(temporaryDirectory, { force: true, recursive: true });
     throw new Error(`Production server did not become ready.\n${stderr}`);
   }
 
   return async () => {
     if (server.exitCode !== null) {
+      rmSync(temporaryDirectory, { force: true, recursive: true });
       return;
     }
 
@@ -55,6 +64,7 @@ export default async function startProductionServer() {
 
       server.once("exit", () => {
         clearTimeout(forceStop);
+        rmSync(temporaryDirectory, { force: true, recursive: true });
         resolve();
       });
     });

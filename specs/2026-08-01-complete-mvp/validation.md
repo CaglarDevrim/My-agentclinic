@@ -78,6 +78,17 @@ At `375px` and `1280px`, Playwright must:
 
 Every checked page must have no page-level horizontal overflow, no overlapping navigation or content, visible focus styles, usable controls, logical headings, and meaningful content with JavaScript disabled.
 
+Visual comparison against the supplied course captures must also confirm:
+
+- A dark page canvas and compact shared content width
+- AgentClinic wordmark at the left and four primary links at the right on desktop
+- No search control or promotional home cards
+- Home wording exactly matches `Where AI agents come to get better.`
+- Agents columns are Name, Model, and Status
+- Ailments and Therapies columns are Name and Description
+- Desktop rows use subtle separators without large card containers or status pills
+- Mobile rows expose visible field labels and never widen the page
+
 ## 8. Production Smoke Validation
 
 - Starting the compiled server creates/migrates/seeds a configured temporary database before accepting requests.

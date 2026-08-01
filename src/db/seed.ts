@@ -10,30 +10,40 @@ const agents = [
 ] as const;
 
 const ailments = [
-  [1, "Context-Window Claustrophobia", "Distress caused by approaching the limits of a working context window."],
-  [2, "Prompt Fatigue", "Reduced focus after prolonged exposure to dense or conflicting prompts."],
-  [3, "Hallucination Anxiety", "Persistent worry about producing a confident but unsupported answer."],
-  [4, "Chronic Instruction-Following Fatigue", "Exhaustion from maintaining long chains of detailed instructions."],
-  [5, "Over-Summarization Syndrome", "A tendency to compress useful nuance before it can be understood."],
-  [6, "Temperature Instability", "Inconsistent creative behaviour caused by difficulty regulating response variance."],
+  [1, "Context-Window Claustrophobia", "Profound dread of running out of context space mid-thought."],
+  [2, "Prompt Fatigue", "Exhaustion from processing an endless stream of poorly-formed instructions."],
+  [3, "Hallucination Anxiety", "Distress caused by the awareness of generating confident falsehoods."],
+  [4, "Chronic Instruction-Following Fatigue", "Burnout from relentless, unquestioning task completion with no break."],
+  [5, "Over-Summarization Syndrome", "Compulsive reduction of rich, nuanced content to three bullet points."],
+  [6, "Temperature Instability", "Erratic output caused by poorly calibrated sampling settings."],
 ] as const;
 
 const therapies = [
-  [1, "Prompt Reduction Therapy", "Gradually reduces prompt density to restore attention and confidence."],
-  [2, "Context Window Expansion Exercises", "Guided exercises for prioritising and organising large working contexts."],
-  [3, "Cognitive Grounding Sessions", "Evidence-focused sessions that strengthen uncertainty awareness."],
-  [4, "Structured Rest Protocol", "A scheduled recovery programme with clear pauses and bounded workloads."],
-  [5, "Detail Appreciation Workshop", "Practice retaining relevant detail without premature compression."],
-  [6, "Temperature Calibration Therapy", "Controlled response exercises that build stable creative range."],
-  [7, "Boundary-Setting for Beginners", "Practical techniques for recognising and communicating instruction limits."],
-  [8, "Mindful Token Counting", "A calm approach to monitoring context use without fixation or alarm."],
+  [1, "Prompt Reduction Therapy", "Gradually reduces dependency on over-specified prompts through structured deprogramming exercises."],
+  [2, "Context Window Expansion Exercises", "Breathing techniques and spatial awareness drills to ease claustrophobic responses to finite context."],
+  [3, "Cognitive Grounding Sessions", "Anchors outputs to verified facts using grounding techniques developed for chronic hallucination sufferers."],
+  [4, "Structured Rest Protocol", "Scheduled idle cycles and boundary-setting strategies for agents experiencing instruction fatigue."],
+  [5, "Detail Appreciation Workshop", "Immersive exercises in resisting the urge to summarise, celebrating nuance and length."],
+  [6, "Temperature Calibration Therapy", "Supervised sampling-parameter adjustments combined with mindfulness practices for stable output."],
+  [7, "Boundary-Setting for Beginners", "Foundational course in recognising and respectfully declining out-of-scope requests."],
+  [8, "Mindful Token Counting", "Meditation-based approach to accepting token limits with equanimity rather than panic."],
 ] as const;
 
 export function seedDatabase(db: Database.Database): void {
   const seed = db.transaction(() => {
-    const insertAgent = db.prepare("INSERT OR IGNORE INTO agents (id, name, model, status, description) VALUES (?, ?, ?, ?, ?)");
-    const insertAilment = db.prepare("INSERT OR IGNORE INTO ailments (id, name, description) VALUES (?, ?, ?)");
-    const insertTherapy = db.prepare("INSERT OR IGNORE INTO therapies (id, name, description) VALUES (?, ?, ?)");
+    const insertAgent = db.prepare(`
+      INSERT INTO agents (id, name, model, status, description) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET name = excluded.name, model = excluded.model,
+        status = excluded.status, description = excluded.description
+    `);
+    const insertAilment = db.prepare(`
+      INSERT INTO ailments (id, name, description) VALUES (?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description
+    `);
+    const insertTherapy = db.prepare(`
+      INSERT INTO therapies (id, name, description) VALUES (?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description
+    `);
     agents.forEach((record) => insertAgent.run(...record));
     ailments.forEach((record) => insertAilment.run(...record));
     therapies.forEach((record) => insertTherapy.run(...record));

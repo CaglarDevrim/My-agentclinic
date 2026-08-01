@@ -60,10 +60,14 @@
 
 ## Task Group 9 - Responsive Visual Completion
 
-1. Extend the existing design system for catalogs, detail panels, forms, metrics, tables, errors, and statuses.
-2. Keep primary navigation visible and usable from `375px` through `1280px`.
-3. Prevent page-level overflow and preserve visible keyboard focus.
-4. Match the course video's complete-clinic information architecture.
+1. Replace the oversized light card system with the supplied course video's compact dark visual system.
+2. Remove the non-functional header search and align the wordmark and four primary destinations in one desktop row.
+3. Reduce the home page to the course heading and `Where AI agents come to get better.` introduction.
+4. Render Agents, Ailments, and Therapies as the course-reference tables with alphabetical records and matching descriptions.
+5. Extend the same typography, spacing, borders, links, forms, and action treatment to details, booking, confirmation, dashboard, and errors.
+6. Convert table rows to labelled stacked records on narrow screens.
+7. Keep primary navigation visible and usable from `375px` through `1280px`.
+8. Prevent page-level overflow and preserve visible keyboard focus.
 
 ## Task Group 10 - Automated Coverage
 
@@ -80,4 +84,3 @@
 2. Run dependency audit and `git diff --check`.
 3. Review the result against the course reference navigation, data, and workflows.
 4. Update roadmap completion state only after all gates pass.
-

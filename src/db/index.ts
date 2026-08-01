@@ -16,7 +16,7 @@ export function openDatabase(filename = ":memory:"): Database.Database {
 }
 
 export function listAgents(db: Database.Database): AgentRecord[] {
-  return db.prepare("SELECT id, name, model, status, description FROM agents ORDER BY id").all() as AgentRecord[];
+  return db.prepare("SELECT id, name, model, status, description FROM agents ORDER BY name").all() as AgentRecord[];
 }
 
 export function findAgent(db: Database.Database, id: number): AgentDetail | undefined {
@@ -28,7 +28,7 @@ export function findAgent(db: Database.Database, id: number): AgentDetail | unde
 }
 
 export function listAilments(db: Database.Database): AilmentSummary[] {
-  const rows = db.prepare("SELECT id, name, description FROM ailments ORDER BY id").all() as AilmentRecord[];
+  const rows = db.prepare("SELECT id, name, description FROM ailments ORDER BY name").all() as AilmentRecord[];
   const agents = db.prepare(`SELECT aa.ailment_id, ag.name FROM agent_ailments aa JOIN agents ag ON ag.id = aa.agent_id ORDER BY ag.id`).all() as Array<{ ailment_id: number; name: string }>;
   const therapies = db.prepare(`SELECT at.ailment_id, t.id, t.name, t.description FROM ailment_therapies at JOIN therapies t ON t.id = at.therapy_id ORDER BY t.id`).all() as Array<TherapyRecord & { ailment_id: number }>;
   return rows.map((row) => {
@@ -38,7 +38,7 @@ export function listAilments(db: Database.Database): AilmentSummary[] {
 }
 
 export function listTherapies(db: Database.Database): TherapySummary[] {
-  const rows = db.prepare("SELECT id, name, description FROM therapies ORDER BY id").all() as TherapyRecord[];
+  const rows = db.prepare("SELECT id, name, description FROM therapies ORDER BY name").all() as TherapyRecord[];
   const ailments = db.prepare(`SELECT at.therapy_id, a.id, a.name, a.description FROM ailment_therapies at JOIN ailments a ON a.id = at.ailment_id ORDER BY a.id`).all() as Array<AilmentRecord & { therapy_id: number }>;
   return rows.map((row) => ({ ...row, ailments: ailments.filter((item) => item.therapy_id === row.id).map(({ therapy_id: _therapyId, ...ailment }) => ailment) }));
 }
@@ -57,6 +57,6 @@ export function getDashboard(db: Database.Database): DashboardData {
   const openAppointments = (db.prepare("SELECT COUNT(*) AS count FROM appointments WHERE status IN ('pending', 'confirmed')").get() as { count: number }).count;
   const activeAilments = (db.prepare(`SELECT COUNT(DISTINCT aa.ailment_id) AS count FROM agent_ailments aa JOIN agents ag ON ag.id = aa.agent_id WHERE ag.status = 'active'`).get() as { count: number }).count;
   const appointments = db.prepare(`SELECT ap.id, ap.agent_id, ag.name AS agent_name, ap.therapist_name, ap.scheduled_at, ap.status, ap.created_at FROM appointments ap JOIN agents ag ON ag.id = ap.agent_id WHERE ap.status IN ('pending', 'confirmed') ORDER BY ap.scheduled_at, ap.id`).all() as AppointmentRecord[];
-  const ailments = db.prepare(`SELECT a.id, a.name, a.description, COUNT(aa.agent_id) AS agent_count FROM ailments a LEFT JOIN agent_ailments aa ON aa.ailment_id = a.id GROUP BY a.id ORDER BY a.id`).all() as Array<AilmentRecord & { agent_count: number }>;
+  const ailments = db.prepare(`SELECT a.id, a.name, a.description, COUNT(aa.agent_id) AS agent_count FROM ailments a LEFT JOIN agent_ailments aa ON aa.ailment_id = a.id GROUP BY a.id ORDER BY a.name`).all() as Array<AilmentRecord & { agent_count: number }>;
   return { totalAgents, openAppointments, activeAilments, agents: listAgents(db), appointments, ailments };
 }

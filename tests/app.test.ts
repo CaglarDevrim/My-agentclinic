@@ -31,8 +31,9 @@ describe("AgentClinic routes", () => {
     const html = await response.text();
     expect(response.status).toBe(200);
     expect(html).toMatch(/^<!doctype html>/i);
-    expect(html).toContain("AgentClinic is open for business");
-    expect(html).toContain('role="search"');
+    expect(html).toContain("Where AI agents come to get better.");
+    expect(html).not.toContain('role="search"');
+    expect(html).not.toContain("feature-card");
     for (const [path, label] of [["/agents", "Agents"], ["/ailments", "Ailments"], ["/therapies", "Therapies"], ["/dashboard", "Dashboard"]]) {
       expect(html).toContain(`href="${path}"`);
       expect(html).toContain(`>${label}<`);
@@ -46,7 +47,9 @@ describe("AgentClinic routes", () => {
     expect(list.status).toBe(200);
     expect(listHtml).toContain("Bartholomew-47B");
     expect(listHtml).toContain("Hildegard-4B");
-    expect((listHtml.match(/class="catalog-card"/g) ?? [])).toHaveLength(6);
+    expect((listHtml.match(/data-label="Name"/g) ?? [])).toHaveLength(6);
+    expect(listHtml).toContain("<th scope=\"col\">Name</th><th scope=\"col\">Model</th><th scope=\"col\">Status</th>");
+    expect(listHtml.indexOf("Agatha-nano")).toBeLessThan(listHtml.indexOf("Bartholomew-47B"));
     expect(listHtml).toMatch(/href="\/agents\/1"/);
 
     const detail = await app.request("/agents/1");
@@ -71,15 +74,18 @@ describe("AgentClinic routes", () => {
     const ailmentHtml = await ailments.text();
     expect(ailments.status).toBe(200);
     expect(ailmentHtml).toContain("Temperature Instability");
-    expect(ailmentHtml).toContain("Mindful Token Counting");
-    expect((ailmentHtml.match(/class="catalog-card"/g) ?? [])).toHaveLength(6);
+    expect(ailmentHtml).toContain("Profound dread of running out of context space mid-thought.");
+    expect((ailmentHtml.match(/data-label="Name"/g) ?? [])).toHaveLength(6);
+    expect(ailmentHtml).toContain("<th scope=\"col\">Name</th><th scope=\"col\">Description</th>");
+    expect(ailmentHtml.indexOf("Chronic Instruction-Following Fatigue")).toBeLessThan(ailmentHtml.indexOf("Context-Window Claustrophobia"));
 
     const therapies = await app.request("/therapies");
     const therapyHtml = await therapies.text();
     expect(therapies.status).toBe(200);
     expect(therapyHtml).toContain("Cognitive Grounding Sessions");
-    expect(therapyHtml).toContain("Hallucination Anxiety");
-    expect((therapyHtml.match(/class="catalog-card"/g) ?? [])).toHaveLength(8);
+    expect(therapyHtml).toContain("Foundational course in recognising and respectfully declining out-of-scope requests.");
+    expect((therapyHtml.match(/data-label="Name"/g) ?? [])).toHaveLength(8);
+    expect(therapyHtml.indexOf("Boundary-Setting for Beginners")).toBeLessThan(therapyHtml.indexOf("Cognitive Grounding Sessions"));
   });
 
   it("returns accessible 422 errors without writing invalid appointments", async () => {
@@ -141,11 +147,14 @@ describe("AgentClinic routes", () => {
     const response = await app.request("/static/style.css");
     const css = await response.text();
     expect(response.status).toBe(200);
-    expect(css).toContain(".catalog-grid");
+    expect(css).toContain("color-scheme: dark");
+    expect(css).toContain("--background: #11161c");
+    expect(css).toContain(".catalog-table");
     expect(css).toContain(".metrics");
     expect(css).toContain(".table-wrap");
-    expect(css).toContain("@media (min-width: 721px)");
+    expect(css).toContain("@media (min-width: 641px)");
     expect(css).toContain('a[aria-current="page"]');
     expect(css).not.toContain("@media (max-width:");
+    expect(css).not.toContain(".search-form");
   });
 });

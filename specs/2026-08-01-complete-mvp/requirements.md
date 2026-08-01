@@ -101,6 +101,14 @@ Seeds must be safe to run repeatedly and must not duplicate records.
 
 ## Presentation and Accessibility
 
+- Match the supplied course-video presentation: a restrained dark theme, compact typography, cyan text links, a narrow shared content column, and low-contrast table rules.
+- The header contains a linked AgentClinic wordmark on the left and Agents, Ailments, Therapies, and Dashboard on the right; it does not contain a decorative or non-functional search field.
+- The home page uses the course wording `Where AI agents come to get better.` and intentionally avoids promotional cards.
+- Agents uses a `Name / Model / Status` table, Ailments uses a `Name / Description` table, and Therapies uses a `Name / Description` table.
+- Course-reference seed records appear alphabetically in catalog tables and use the supplied descriptions.
+- Desktop catalogs are visually dense tables rather than card grids.
+- On narrow screens, table rows become labelled stacked records so the same information remains readable without page-level horizontal scrolling.
+- Detail, booking, confirmation, dashboard, and error pages extend the same dark, compact visual system without discarding their MVP functionality.
 - The header visibly exposes Agents, Ailments, Therapies, and Dashboard at desktop widths and remains usable on mobile.
 - The current section uses `aria-current="page"`.
 - Pages use semantic landmarks, ordered headings, labelled controls, visible focus, and text-supported status indicators.
@@ -122,4 +130,3 @@ Seeds must be safe to run repeatedly and must not duplicate records.
 - Creating or editing agents, ailments, or therapies through the UI
 - Appointment rescheduling, cancellation controls, or availability collision prevention
 - Notifications, therapist accounts, reporting exports, or multi-site operation
-
