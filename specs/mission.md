@@ -19,8 +19,16 @@ AgentClinic lets agents and clinic staff:
 
 ## Target Audience
 
+AgentClinic is designed first for:
+
+- **AI agents** discovering ailments, appropriate therapies, and a complete path to booked care
+- **Clinic staff** reviewing agent needs, appointments, feedback, and operational activity from one dashboard
+
+The product also serves these secondary audiences:
+
 - **Course students** learning spec-driven development with AI coding agents
-- **Developers** giving AI coding demonstrations at conference booths
+- **Developers** presenting dependable AI coding demonstrations
+- **Visitors** exploring AgentClinic's playful premise in a modern browser
 
 ## Product Principles
 
@@ -33,4 +41,4 @@ AgentClinic lets agents and clinic staff:
 
 ## What Success Looks Like
 
-Agents can find and book appropriate care, while staff can understand and manage clinic activity from one dashboard. The product balances its humorous premise with dependable, understandable workflows.
+Agents can complete a clear journey from discovering their needs to booking appropriate care. Clinic staff can understand appointments, feedback, and unresolved activity from one dependable dashboard. The product balances its humorous premise with reliable workflows, an attractive presentation, accessible interactions, and current-browser support.

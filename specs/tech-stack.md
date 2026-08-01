@@ -37,6 +37,26 @@ AgentClinic is a server-rendered TypeScript web application. The stack favors re
 - Keep the network-listening server entry point separate from the importable application.
 - Run the complete validation suite non-interactively with `npm run validate`.
 
+## Operations and Quality Standards
+
+- Read deployment-specific values from validated environment configuration and provide safe local defaults where appropriate.
+- Apply versioned migrations and deterministic seeds before the production server accepts requests.
+- Keep automated tests isolated from development and production SQLite files.
+- Log request method, path, status, and duration without recording secrets or sensitive form values.
+- Return branded, non-sensitive not-found and server-error responses.
+- Validate and normalize every request-derived value before persistence, and use parameterized SQL for database writes and lookups.
+- Escape user-controlled output through server-rendered JSX and never insert it as raw HTML.
+- Treat semantic structure, visible focus, labelled controls, understandable errors, and keyboard operation as merge requirements.
+- Require responsive validation at `375px` and `1280px`, with no page-level horizontal overflow.
+- Use `npm run validate` as the merge gate for type checking, route and database tests, production compilation, and Playwright coverage.
+- Run dependency auditing and `git diff --check` before merging dependency or release changes.
+
+## External Content and Maps
+
+- Prefer a visible textual clinic address and an accessible link to an external map provider.
+- Do not require an embedded map, third-party tracking script, map SDK, or API key for the About page.
+- Provide meaningful link text and preserve the address when the external map provider is unavailable.
+
 ## Initial Constraints
 
 - Support current versions of major modern browsers.

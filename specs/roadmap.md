@@ -72,6 +72,55 @@ The course-video MVP now lists open appointments on the dashboard and rejects in
 - Add structured request logging
 - Verify production build and startup
 
+## Phase 10 — Feedback Persistence Foundation
+
+- Define the minimal feedback record and repository boundary
+- Add an ordered SQLite migration for feedback submissions
+- Add isolated migration, persistence, and repeatable-startup tests
+
+## Phase 11 — Public Feedback Journey
+
+- Add a public feedback form linked from the shared site navigation or footer
+- Validate required feedback fields at the server boundary
+- Save valid submissions and use Post/Redirect/Get for confirmation
+- Add accessible validation, responsive layout, route tests, and browser coverage
+
+At this point, visitors can submit feedback reliably without requiring client-side JavaScript.
+
+## Phase 12 — Staff Feedback Review
+
+- Add a dashboard destination for stored feedback
+- List submissions in a deterministic order with a useful empty state
+- Keep user-provided content escaped and readable on mobile and desktop
+- Add dashboard aggregation, route, and browser regression tests
+
+## Phase 13 — Review Approval Workflow
+
+- Add an explicit approval state to stored feedback
+- Let staff approve or withdraw feedback for public display
+- Validate state transitions and preserve unapproved feedback as private clinic data
+- Add persistence, authorization-boundary preparation, and failure-path tests
+
+## Phase 14 — Public Customer Reviews
+
+- Add a public customer-reviews page
+- Show approved feedback only and omit private submission details
+- Add navigation, empty-state, responsive, accessibility, and browser coverage
+
+## Phase 15 — About and Clinic Address
+
+- Add an About page describing AgentClinic's mission and audience
+- Show a visible, accessible clinic address
+- Keep address content configurable without introducing a client framework
+- Add semantic, responsive, and route validation
+
+## Phase 16 — External Map Link and Hardening
+
+- Add an accessible external map link derived from the displayed address
+- Avoid embedded tracking, map SDKs, and API keys
+- Verify safe external-link behavior and a useful no-provider fallback
+- Run the complete validation, dependency audit, and production smoke gates
+
 ## Deferred
 
-Authentication, notifications, therapist profiles, reporting, and multi-site operation remain outside the initial roadmap.
+Authentication enforcement, notifications, therapist profiles, reporting, embedded maps, and multi-site operation remain outside the initial roadmap.
