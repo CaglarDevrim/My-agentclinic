@@ -1,8 +1,13 @@
 export type ActiveSection = "/" | "/agents" | "/ailments" | "/therapies" | "/reviews" | "/about" | "/dashboard";
 
-interface HeaderProps { activePath: ActiveSection; }
+export interface StaffHeaderContext {
+  displayName: string;
+  csrfToken: string;
+}
 
-export function Header({ activePath }: HeaderProps) {
+interface HeaderProps { activePath: ActiveSection; staff?: StaffHeaderContext; }
+
+export function Header({ activePath, staff }: HeaderProps) {
   return (
     <header class="site-header">
       <div class="site-header__inner">
@@ -36,6 +41,15 @@ export function Header({ activePath }: HeaderProps) {
           </ul>
         </nav>
       </div>
+      {staff && (
+        <div class="staff-session" aria-label="Signed-in staff">
+          <span>Signed in as <strong>{staff.displayName}</strong></span>
+          <form method="post" action="/logout">
+            <input type="hidden" name="_csrf" value={staff.csrfToken} />
+            <button class="button button--secondary button--compact" type="submit">Sign out</button>
+          </form>
+        </div>
+      )}
     </header>
   );
 }

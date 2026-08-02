@@ -1,18 +1,50 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app.js";
+import { createStaffSession } from "../src/auth/service.js";
+import { hashStaffPassword, SESSION_COOKIE_NAME } from "../src/auth/security.js";
+import { createStaffUser } from "../src/auth/store.js";
 import { countFeedback, createFeedback, findAppointment, findFeedback, getDashboard, openDatabase, type ClinicDatabase } from "../src/db/index.js";
 
 describe("AgentClinic routes", () => {
   let database!: ClinicDatabase;
   let app: ReturnType<typeof createApp>;
+  let staffCookie = "";
+  let staffCsrf = "";
+  let passwordHash = "";
   const logger = vi.fn();
+  const testNow = new Date("2026-08-01T12:00:00");
+
+  beforeAll(async () => {
+    passwordHash = await hashStaffPassword("Correct horse battery staple");
+  });
 
   beforeEach(async () => {
     database = await openDatabase();
+    const staffId = await createStaffUser(database, { email: "staff@example.com", displayName: "Clinic Staff", passwordHash });
+    const session = await createStaffSession(database, { id: staffId, email: "staff@example.com", displayName: "Clinic Staff" }, testNow);
+    staffCookie = `${SESSION_COOKIE_NAME}=${session.sessionToken}`;
+    staffCsrf = session.csrfToken;
     logger.mockReset();
-    app = createApp(database, { logger, now: () => new Date("2026-08-01T12:00:00") });
+    app = createApp(database, { logger, now: () => testNow });
   });
+
+  async function staffRequest(path: string, init: RequestInit = {}): Promise<Response> {
+    const method = (init.method ?? "GET").toUpperCase();
+    const headers = new Headers(init.headers);
+    headers.set("cookie", staffCookie);
+    let body = init.body;
+    if (method === "POST") {
+      headers.set("origin", "http://localhost");
+      if (body instanceof URLSearchParams) {
+        body = new URLSearchParams(body);
+        body.set("_csrf", staffCsrf);
+      } else if (!body) {
+        body = new URLSearchParams({ _csrf: staffCsrf });
+      }
+    }
+    return app.request(path, { ...init, method, headers, body });
+  }
 
   afterEach(() => {
     if (database && !database.closed) database.close();
@@ -156,7 +188,7 @@ describe("AgentClinic routes", () => {
   });
 
   it("renders dashboard metrics and excludes cancelled appointments", async () => {
-    const response = await app.request("/dashboard");
+    const response = await staffRequest("/dashboard");
     const html = await response.text();
     expect(response.status).toBe(200);
     expect(html).toContain("Total agents");
@@ -174,30 +206,30 @@ describe("AgentClinic routes", () => {
   });
 
   it("manages appointment statuses with controlled POST-only transitions", async () => {
-    expect((await app.request("/dashboard/appointments/2/confirm")).status).toBe(404);
+    expect((await staffRequest("/dashboard/appointments/2/confirm")).status).toBe(404);
     for (const value of ["0", "-1", "1.5", "unknown", "9007199254740992", "999"]) {
-      expect((await app.request(`/dashboard/appointments/${value}/confirm`, { method: "POST" })).status).toBe(404);
-      expect((await app.request(`/dashboard/appointments/${value}/cancel`, { method: "POST" })).status).toBe(404);
+      expect((await staffRequest(`/dashboard/appointments/${value}/confirm`, { method: "POST" })).status).toBe(404);
+      expect((await staffRequest(`/dashboard/appointments/${value}/cancel`, { method: "POST" })).status).toBe(404);
     }
 
-    const confirm = await app.request("/dashboard/appointments/2/confirm", { method: "POST" });
+    const confirm = await staffRequest("/dashboard/appointments/2/confirm", { method: "POST" });
     expect(confirm.status).toBe(303);
     expect(confirm.headers.get("location")).toBe("/dashboard");
     expect((await findAppointment(database, 3, 2))?.status).toBe("confirmed");
-    expect((await app.request("/dashboard/appointments/2/confirm", { method: "POST" })).status).toBe(303);
+    expect((await staffRequest("/dashboard/appointments/2/confirm", { method: "POST" })).status).toBe(303);
 
     const openBeforeCancel = (await getDashboard(database)).openAppointments;
-    const beforeCancel = (await (await app.request("/dashboard")).text());
+    const beforeCancel = (await (await staffRequest("/dashboard")).text());
     expect(beforeCancel).toContain("Dr Marcus Chen");
-    const cancel = await app.request("/dashboard/appointments/2/cancel", { method: "POST" });
+    const cancel = await staffRequest("/dashboard/appointments/2/cancel", { method: "POST" });
     expect(cancel.status).toBe(303);
     expect(cancel.headers.get("location")).toBe("/dashboard");
     expect((await findAppointment(database, 3, 2))?.status).toBe("cancelled");
     expect((await getDashboard(database)).openAppointments).toBe(openBeforeCancel - 1);
-    expect((await app.request("/dashboard/appointments/2/cancel", { method: "POST" })).status).toBe(303);
-    expect(await (await app.request("/dashboard")).text()).not.toContain("Dr Marcus Chen");
+    expect((await staffRequest("/dashboard/appointments/2/cancel", { method: "POST" })).status).toBe(303);
+    expect(await (await staffRequest("/dashboard")).text()).not.toContain("Dr Marcus Chen");
 
-    const prohibited = await app.request("/dashboard/appointments/2/confirm", { method: "POST" });
+    const prohibited = await staffRequest("/dashboard/appointments/2/confirm", { method: "POST" });
     expect(prohibited.status).toBe(409);
     expect(await prohibited.text()).toContain("A cancelled appointment cannot be confirmed.");
     expect((await findAppointment(database, 3, 2))?.status).toBe("cancelled");
@@ -214,7 +246,7 @@ describe("AgentClinic routes", () => {
   it("uses a safe branded 500 response and logs the failed request", async () => {
     const errorOutput = vi.spyOn(console, "error").mockImplementation(() => undefined);
     database.close();
-    const response = await app.request("/dashboard");
+    const response = await staffRequest("/dashboard");
     const html = await response.text();
     expect(response.status).toBe(500);
     expect(html).toContain("Clinic system error");
@@ -338,7 +370,7 @@ describe("AgentClinic routes", () => {
     const emptyReviews = await app.request("/reviews");
     expect(emptyReviews.status).toBe(200);
     expect(await emptyReviews.text()).toContain("No published reviews yet");
-    const emptyModeration = await app.request("/dashboard/reviews");
+    const emptyModeration = await staffRequest("/dashboard/reviews");
     expect(emptyModeration.status).toBe(200);
     expect(await emptyModeration.text()).toContain("No consented feedback");
 
@@ -357,10 +389,10 @@ describe("AgentClinic routes", () => {
       publicConsent: true,
     });
 
-    const dashboard = await app.request("/dashboard");
+    const dashboard = await staffRequest("/dashboard");
     expect(await dashboard.text()).toMatch(/Pending reviews<\/a><\/dt><dd>1<\/dd>/);
 
-    const pending = await app.request("/dashboard/reviews");
+    const pending = await staffRequest("/dashboard/reviews");
     const pendingHtml = await pending.text();
     expect(pending.status).toBe(200);
     expect(pendingHtml).toContain("Review moderation");
@@ -371,19 +403,19 @@ describe("AgentClinic routes", () => {
     expect(pendingHtml).not.toContain("review.agent@example.com");
     expect(pendingHtml).toMatch(/href="\/dashboard" aria-current="page"/);
 
-    expect((await app.request(`/dashboard/reviews/${privateId}/approve`, { method: "POST" })).status).toBe(404);
+    expect((await staffRequest(`/dashboard/reviews/${privateId}/approve`, { method: "POST" })).status).toBe(404);
     for (const value of ["0", "-1", "1.5", "unknown", "9007199254740992", "999"]) {
-      expect((await app.request(`/dashboard/reviews/${value}/approve`, { method: "POST" })).status).toBe(404);
-      expect((await app.request(`/dashboard/reviews/${value}/unpublish`, { method: "POST" })).status).toBe(404);
+      expect((await staffRequest(`/dashboard/reviews/${value}/approve`, { method: "POST" })).status).toBe(404);
+      expect((await staffRequest(`/dashboard/reviews/${value}/unpublish`, { method: "POST" })).status).toBe(404);
     }
-    expect((await app.request(`/dashboard/reviews/${publicId}/approve`)).status).toBe(404);
+    expect((await staffRequest(`/dashboard/reviews/${publicId}/approve`)).status).toBe(404);
 
-    const approval = await app.request(`/dashboard/reviews/${publicId}/approve`, { method: "POST" });
+    const approval = await staffRequest(`/dashboard/reviews/${publicId}/approve`, { method: "POST" });
     expect(approval.status).toBe(303);
     expect(approval.headers.get("location")).toBe("/dashboard/reviews");
     const approvedAt = (await findFeedback(database, publicId))?.approved_at;
     expect(approvedAt).toEqual(expect.any(String));
-    expect((await app.request(`/dashboard/reviews/${publicId}/approve`, { method: "POST" })).status).toBe(303);
+    expect((await staffRequest(`/dashboard/reviews/${publicId}/approve`, { method: "POST" })).status).toBe(303);
     expect((await findFeedback(database, publicId))?.approved_at).toBe(approvedAt);
 
     const reviews = await app.request("/reviews");
@@ -398,12 +430,12 @@ describe("AgentClinic routes", () => {
     expect(reviewHtml).not.toContain("/dashboard/reviews");
     expect(reviewHtml).toMatch(/href="\/reviews" aria-current="page"/);
 
-    const published = await app.request("/dashboard/reviews");
+    const published = await staffRequest("/dashboard/reviews");
     expect(await published.text()).toContain("Remove from reviews");
-    const unpublish = await app.request(`/dashboard/reviews/${publicId}/unpublish`, { method: "POST" });
+    const unpublish = await staffRequest(`/dashboard/reviews/${publicId}/unpublish`, { method: "POST" });
     expect(unpublish.status).toBe(303);
     expect(unpublish.headers.get("location")).toBe("/dashboard/reviews");
-    expect((await app.request(`/dashboard/reviews/${publicId}/unpublish`, { method: "POST" })).status).toBe(303);
+    expect((await staffRequest(`/dashboard/reviews/${publicId}/unpublish`, { method: "POST" })).status).toBe(303);
     expect(await (await app.request("/reviews")).text()).not.toContain("Review Agent");
     expect(logger.mock.calls.flat().join(" ")).not.toContain("review.agent@example.com");
   });

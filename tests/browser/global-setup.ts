@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,12 +8,23 @@ const port = 3100;
 export default async function startProductionServer() {
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "agentclinic-browser-"));
   const databasePath = join(temporaryDirectory, "clinic.sqlite");
+  const environment = {
+    ...process.env,
+    AGENTCLINIC_DB: databasePath,
+    AGENTCLINIC_STAFF_PASSWORD: "Browser staff password 2026!",
+    PORT: String(port),
+  };
+  const provisioning = spawnSync(process.execPath, ["dist/staff-create.js", "--email", "browser.staff@example.com", "--name", "Browser Staff"], {
+    env: environment,
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  if (provisioning.status !== 0) {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+    throw new Error(`Browser staff provisioning failed.\n${provisioning.stderr}`);
+  }
   const server = spawn(process.execPath, ["dist/index.js"], {
-    env: {
-      ...process.env,
-      AGENTCLINIC_DB: databasePath,
-      PORT: String(port),
-    },
+    env: environment,
     stdio: ["ignore", "ignore", "pipe"],
     windowsHide: true,
   });

@@ -1,7 +1,11 @@
 import { serveStatic } from "@hono/node-server/serve-static";
-import { Hono } from "hono";
+import { Hono, type MiddlewareHandler } from "hono";
 import { jsxRenderer } from "hono/jsx-renderer";
 
+import { clearLoginCsrfCookie, clearSessionCookie, readLoginCsrfCookie, readSessionCookie, setLoginCsrfCookie, setSessionCookie } from "./auth/cookies.js";
+import { authenticateStaffCredentials, authenticateStaffSession, createStaffSession, endStaffSession } from "./auth/service.js";
+import { constantTimeStringEqual, createLoginCsrfToken, hasSameOrigin, isFreshLoginCsrfToken, isValidStaffEmail, isValidStaffPassword, normalizeStaffEmail, safeDashboardReturnTo } from "./auth/security.js";
+import type { AuthenticatedStaff } from "./auth/types.js";
 import { approveReview, cancelAppointment, confirmAppointment, createAppointment, createFeedback, findAgent, findAppointment, getDashboard, listAgents, listAilments, listPublicReviews, listReviewModerationItems, listTherapies, unpublishReview, type ClinicDatabase } from "./db/index.js";
 import { findAgentBySlug } from "./domain/care.js";
 import { validateFeedback, type FeedbackValues } from "./domain/feedback.js";
@@ -11,13 +15,25 @@ import { HomePage } from "./pages/HomePage.js";
 import { FeedbackPage, FeedbackThanksPage } from "./pages/FeedbackPage.js";
 import { ReviewModerationPage, ReviewsPage } from "./pages/ReviewPages.js";
 import { AboutPage } from "./pages/AboutPage.js";
+import { LoginPage, type LoginErrors } from "./pages/AuthPage.js";
 
 export type RequestLogger = (message: string) => void;
+
+type AppEnv = { Variables: { staffAuth: AuthenticatedStaff } };
 
 function parsePositiveId(value: string): number | undefined {
   if (!/^[1-9]\d*$/.test(value)) return undefined;
   const id = Number(value);
   return Number.isSafeInteger(id) ? id : undefined;
+}
+
+function singleFormValue(formData: FormData, name: string): string | undefined {
+  const values = formData.getAll(name);
+  return values.length === 1 && typeof values[0] === "string" ? values[0] : undefined;
+}
+
+function staffHeader(auth: AuthenticatedStaff) {
+  return { displayName: auth.displayName, csrfToken: auth.csrfToken };
 }
 
 function validateAppointment(values: AppointmentValues, now: Date): AppointmentErrors {
@@ -39,7 +55,7 @@ function validateAppointment(values: AppointmentValues, now: Date): AppointmentE
 }
 
 export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger; now?: () => Date } = {}) {
-  const app = new Hono();
+  const app = new Hono<AppEnv>();
   const logger = options.logger ?? console.log;
   const now = options.now ?? (() => new Date());
 
@@ -51,12 +67,135 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
   app.use(jsxRenderer());
   app.use("/static/*", serveStatic({ root: "./" }));
 
+  const requireStaff: MiddlewareHandler<AppEnv> = async (context, next) => {
+    context.header("Cache-Control", "no-store");
+    const sessionToken = readSessionCookie(context);
+    const auth = await authenticateStaffSession(db, sessionToken, now());
+    if (!auth) {
+      if (sessionToken) clearSessionCookie(context);
+      const requestUrl = new URL(context.req.url);
+      const requestedDestination = context.req.method === "GET" || context.req.method === "HEAD"
+        ? safeDashboardReturnTo(`${requestUrl.pathname}${requestUrl.search}`)
+        : "/dashboard";
+      return context.redirect(`/login?returnTo=${encodeURIComponent(requestedDestination)}`, 303);
+    }
+
+    context.set("staffAuth", auth);
+    if (context.req.method === "POST") {
+      let csrfToken: string | undefined;
+      try {
+        csrfToken = singleFormValue(await context.req.raw.clone().formData(), "_csrf");
+      } catch {
+        csrfToken = undefined;
+      }
+      if (!hasSameOrigin(context.req.raw) || !csrfToken || !constantTimeStringEqual(csrfToken, auth.csrfToken)) {
+        context.status(403);
+        return context.render(<ErrorPage status={403} title="Request forbidden" message="This staff action could not be verified. Return to the dashboard and try again." staff={staffHeader(auth)} />);
+      }
+    }
+    await next();
+  };
+
+  app.use("/dashboard", requireStaff);
+  app.use("/dashboard/*", requireStaff);
+
   app.get("/health", (context) => context.json({ status: "ok" }));
   app.get("/", (context) => context.render(<HomePage />));
   app.get("/agents", async (context) => context.render(<AgentsPage agents={await listAgents(db)} />));
   app.get("/ailments", async (context) => context.render(<AilmentsPage ailments={await listAilments(db)} />));
   app.get("/therapies", async (context) => context.render(<TherapiesPage therapies={await listTherapies(db)} />));
-  app.get("/dashboard", async (context) => context.render(<DashboardPage data={await getDashboard(db)} />));
+  app.get("/login", async (context) => {
+    context.header("Cache-Control", "no-store");
+    const returnTo = safeDashboardReturnTo(context.req.query("returnTo"));
+    const sessionToken = readSessionCookie(context);
+    const auth = await authenticateStaffSession(db, sessionToken, now());
+    if (auth) return context.redirect(returnTo, 303);
+    if (sessionToken) clearSessionCookie(context);
+    const csrfToken = createLoginCsrfToken(now());
+    setLoginCsrfCookie(context, csrfToken);
+    return context.render(<LoginPage csrfToken={csrfToken} values={{ email: "", returnTo }} />);
+  });
+
+  app.post("/login", async (context) => {
+    context.header("Cache-Control", "no-store");
+    const requestTime = now();
+    if (!hasSameOrigin(context.req.raw)) {
+      context.status(403);
+      return context.render(<ErrorPage status={403} title="Request forbidden" message="This login request could not be verified. Reload the login page and try again." />);
+    }
+
+    let formData: FormData;
+    try {
+      formData = await context.req.raw.formData();
+    } catch {
+      context.status(422);
+      const csrfToken = createLoginCsrfToken(requestTime);
+      setLoginCsrfCookie(context, csrfToken);
+      return context.render(<LoginPage csrfToken={csrfToken} errors={{ form: "Submit the login form using valid fields." }} />);
+    }
+
+    const submittedCsrf = singleFormValue(formData, "_csrf");
+    const cookieCsrf = readLoginCsrfCookie(context);
+    if (!submittedCsrf || !cookieCsrf || !isFreshLoginCsrfToken(cookieCsrf, requestTime) || !constantTimeStringEqual(submittedCsrf, cookieCsrf)) {
+      context.status(403);
+      return context.render(<ErrorPage status={403} title="Request forbidden" message="This login request could not be verified. Reload the login page and try again." />);
+    }
+
+    const returnTo = safeDashboardReturnTo(singleFormValue(formData, "returnTo"));
+    const emailValue = singleFormValue(formData, "email");
+    const password = singleFormValue(formData, "password");
+    const email = normalizeStaffEmail(emailValue ?? "");
+    const errors: LoginErrors = {};
+    if (emailValue === undefined || !isValidStaffEmail(email)) errors.email = "Enter a valid staff email address.";
+    if (password === undefined || !isValidStaffPassword(password)) errors.password = "Enter a password between 12 and 128 characters.";
+
+    const renderFailure = (status: 401 | 422 | 429, failureErrors: LoginErrors, retryAfter?: number) => {
+      const csrfToken = createLoginCsrfToken(requestTime);
+      setLoginCsrfCookie(context, csrfToken);
+      if (retryAfter !== undefined) context.header("Retry-After", String(retryAfter));
+      context.status(status);
+      return context.render(<LoginPage csrfToken={csrfToken} values={{ email, returnTo }} errors={failureErrors} />);
+    };
+
+    if (Object.keys(errors).length || password === undefined) return renderFailure(422, errors);
+    const result = await authenticateStaffCredentials(db, email, password, requestTime);
+    if (result.status === "invalid") return renderFailure(401, { form: "The email address or password is incorrect." });
+    if (result.status === "throttled") return renderFailure(429, { form: "Too many sign-in attempts. Try again later." }, result.retryAfter);
+
+    const previousSessionToken = readSessionCookie(context);
+    const auth = await createStaffSession(db, result.staff, requestTime, previousSessionToken);
+    setSessionCookie(context, auth.sessionToken);
+    clearLoginCsrfCookie(context);
+    return context.redirect(returnTo, 303);
+  });
+
+  app.post("/logout", async (context) => {
+    context.header("Cache-Control", "no-store");
+    const sessionToken = readSessionCookie(context);
+    const auth = await authenticateStaffSession(db, sessionToken, now());
+    if (!auth || !sessionToken) {
+      clearSessionCookie(context);
+      return context.redirect("/login", 303);
+    }
+    let csrfToken: string | undefined;
+    try {
+      csrfToken = singleFormValue(await context.req.raw.formData(), "_csrf");
+    } catch {
+      csrfToken = undefined;
+    }
+    if (!hasSameOrigin(context.req.raw) || !csrfToken || !constantTimeStringEqual(csrfToken, auth.csrfToken)) {
+      context.status(403);
+      return context.render(<ErrorPage status={403} title="Request forbidden" message="This sign-out request could not be verified. Return to the dashboard and try again." staff={staffHeader(auth)} />);
+    }
+    await endStaffSession(db, sessionToken);
+    clearSessionCookie(context);
+    return context.redirect("/login", 303);
+  });
+
+  app.get("/dashboard", async (context) => {
+    const auth = context.get("staffAuth");
+    return context.render(<DashboardPage data={await getDashboard(db)} staff={staffHeader(auth)} />);
+  });
   app.post("/dashboard/appointments/:appointmentId/confirm", async (context) => {
     const id = parsePositiveId(context.req.param("appointmentId"));
     if (!id) return context.notFound();
@@ -64,7 +203,7 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
     if (result === "not_found") return context.notFound();
     if (result === "invalid_transition") {
       context.status(409);
-      return context.render(<ErrorPage status={409} title="Appointment conflict" message="A cancelled appointment cannot be confirmed." />);
+      return context.render(<ErrorPage status={409} title="Appointment conflict" message="A cancelled appointment cannot be confirmed." staff={staffHeader(context.get("staffAuth"))} />);
     }
     return context.redirect("/dashboard", 303);
   });
@@ -75,11 +214,14 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
     if (result === "not_found") return context.notFound();
     if (result === "invalid_transition") {
       context.status(409);
-      return context.render(<ErrorPage status={409} title="Appointment conflict" message="This appointment cannot be cancelled from its current state." />);
+      return context.render(<ErrorPage status={409} title="Appointment conflict" message="This appointment cannot be cancelled from its current state." staff={staffHeader(context.get("staffAuth"))} />);
     }
     return context.redirect("/dashboard", 303);
   });
-  app.get("/dashboard/reviews", async (context) => context.render(<ReviewModerationPage items={await listReviewModerationItems(db)} />));
+  app.get("/dashboard/reviews", async (context) => {
+    const auth = context.get("staffAuth");
+    return context.render(<ReviewModerationPage items={await listReviewModerationItems(db)} staff={staffHeader(auth)} />);
+  });
   app.post("/dashboard/reviews/:feedbackId/approve", async (context) => {
     const id = parsePositiveId(context.req.param("feedbackId"));
     if (!id || !await approveReview(db, id)) return context.notFound();

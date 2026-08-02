@@ -1,18 +1,20 @@
 import type { PropsWithChildren } from "hono/jsx";
 
 import { Footer } from "./Footer.js";
-import { Header, type ActiveSection } from "./Header.js";
+import { Header, type ActiveSection, type StaffHeaderContext } from "./Header.js";
 import { Main } from "./Main.js";
 
 type LayoutProps = PropsWithChildren<{
   title?: string;
   activePath?: ActiveSection;
+  staff?: StaffHeaderContext;
 }>;
 
 export function Layout({
   children,
   title = "AgentClinic",
   activePath = "/",
+  staff,
 }: LayoutProps) {
   return (
     <html lang="en">
@@ -23,7 +25,7 @@ export function Layout({
         <link rel="stylesheet" href="/static/style.css" />
       </head>
       <body>
-        <Header activePath={activePath} />
+        <Header activePath={activePath} staff={staff} />
         <Main>{children}</Main>
         <Footer />
       </body>

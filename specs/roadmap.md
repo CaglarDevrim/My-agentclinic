@@ -47,9 +47,15 @@ At this point, visitors can submit dependable feedback without requiring client-
 - Release cancelled slots and return accessible booking conflicts without losing form values
 - Add migration, persistence, concurrency, route, responsive, accessibility, and production-browser coverage
 
+## Phase 5 — Staff Authentication and Authorization ✅
+
+- Add individual staff accounts with versioned scrypt password hashes and secure operator provisioning
+- Protect every dashboard read and mutation with revocable, expiring database sessions
+- Add secure login/logout, safe return paths, failure throttling, same-origin validation, and CSRF enforcement
+- Add migration, crypto, session, authorization, security, responsive, and production-browser coverage
+
 ## Deferred
 
-- Authentication and staff authorization enforcement
 - Notifications and reminders
 - Therapist accounts and schedules
 - Reporting, embedded maps, multi-site operation, and timezone coordination
