@@ -103,6 +103,22 @@ main,
   text-decoration: underline;
 }
 
+.staff-session {
+  display: flex;
+  width: min(100%, 760px);
+  margin: 1rem auto 0;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  align-items: center;
+  justify-content: flex-end;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.staff-session form {
+  margin: 0;
+}
+
 main {
   min-width: 0;
   padding: 2.75rem 1rem 1.5rem;
@@ -571,6 +587,16 @@ tbody th {
 
 .appointment-actions form {
   margin: 0;
+}
+
+.appointment-actions input[type="hidden"],
+.moderation-card input[type="hidden"],
+.staff-session input[type="hidden"] {
+  display: none;
+}
+
+.login-page {
+  margin-inline: auto;
 }
 
 .review-list,

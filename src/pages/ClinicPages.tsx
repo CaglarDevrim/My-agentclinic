@@ -7,6 +7,7 @@ import type {
   TherapySummary,
 } from "../db/types.js";
 import { Layout } from "../components/Layout.js";
+import type { StaffHeaderContext } from "../components/Header.js";
 
 const statusLabels = {
   active: "active",
@@ -227,9 +228,9 @@ export function AppointmentConfirmationPage({ appointment }: { appointment: Appo
   );
 }
 
-export function DashboardPage({ data }: { data: DashboardData }) {
+export function DashboardPage({ data, staff }: { data: DashboardData; staff: StaffHeaderContext }) {
   return (
-    <Layout title="Dashboard | AgentClinic" activePath="/dashboard">
+    <Layout title="Dashboard | AgentClinic" activePath="/dashboard" staff={staff}>
       <PageHeading title="Dashboard" />
       <dl class="metrics">
         <div><dt>Total agents</dt><dd>{data.totalAgents}</dd></div>
@@ -253,10 +254,12 @@ export function DashboardPage({ data }: { data: DashboardData }) {
               <div class="appointment-actions">
                 {appointment.status === "pending" && (
                   <form method="post" action={`/dashboard/appointments/${appointment.id}/confirm`}>
+                    <input type="hidden" name="_csrf" value={staff.csrfToken} />
                     <button class="button button--compact" type="submit" aria-label={`Confirm appointment for ${appointment.agent_name} with ${appointment.therapist_name}`}>Confirm</button>
                   </form>
                 )}
                 <form method="post" action={`/dashboard/appointments/${appointment.id}/cancel`}>
+                  <input type="hidden" name="_csrf" value={staff.csrfToken} />
                   <button class="button button--secondary button--compact" type="submit" aria-label={`Cancel appointment for ${appointment.agent_name} with ${appointment.therapist_name}`}>Cancel</button>
                 </form>
               </div>
@@ -280,9 +283,9 @@ function DashboardTable({ title, headers, children }: { title: string; headers: 
   );
 }
 
-export function ErrorPage({ status, title, message }: { status: 404 | 409 | 500; title: string; message: string }) {
+export function ErrorPage({ status, title, message, staff }: { status: 403 | 404 | 409 | 500; title: string; message: string; staff?: StaffHeaderContext }) {
   return (
-    <Layout title={`${status} ${title} | AgentClinic`}>
+    <Layout title={`${status} ${title} | AgentClinic`} staff={staff}>
       <section class="error-page">
         <p class="error-code">{status}</p><h1>{title}</h1><p>{message}</p>
         <p class="page-actions"><a class="button" href="/">Return home</a><a class="button button--secondary" href="/agents">Browse agents</a></p>

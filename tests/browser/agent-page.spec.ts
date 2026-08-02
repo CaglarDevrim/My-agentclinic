@@ -1,5 +1,15 @@
 import { expect, test } from "@playwright/test";
 
+const staffEmail = "browser.staff@example.com";
+const staffPassword = "Browser staff password 2026!";
+
+async function signInAsStaff(page: import("@playwright/test").Page) {
+  await expect(page).toHaveURL(/\/login(?:\?|$)/);
+  await page.getByLabel("Email address").fill(staffEmail);
+  await page.getByLabel("Password").fill(staffPassword);
+  await page.getByRole("button", { name: "Sign in" }).click();
+}
+
 test("exposes the complete clinic navigation and populated sections", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("Where AI agents come to get better.", { exact: true })).toBeVisible();
@@ -40,8 +50,10 @@ test("exposes the complete clinic navigation and populated sections", async ({ p
   await expect(page.getByText("Foundational course in recognising and respectfully declining out-of-scope requests.", { exact: true })).toBeVisible();
 
   await page.getByRole("navigation").getByRole("link", { name: "Dashboard", exact: true }).click();
+  await signInAsStaff(page);
   await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
   await expect(page.getByText("Total agents", { exact: true })).toBeVisible();
+  await expect(page.getByText("Signed in as", { exact: false })).toContainText("Browser Staff");
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(hasHorizontalOverflow).toBe(false);
@@ -70,6 +82,7 @@ test("completes agent care and appointment booking", async ({ page }) => {
   await expect(page.getByText(therapistName)).toBeVisible();
 
   await page.getByRole("link", { name: "View dashboard" }).click();
+  await signInAsStaff(page);
   await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
   const appointmentRow = page.locator("tr").filter({ hasText: therapistName });
   await expect(appointmentRow).toBeVisible();
@@ -176,6 +189,7 @@ test("moderates and publishes a consented customer review", async ({ page }) => 
   await expect(page.getByText(reviewName)).toHaveCount(0);
 
   await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Dashboard" }).click();
+  await signInAsStaff(page);
   await expect(page.getByRole("link", { name: "Pending reviews" })).toBeVisible();
   await page.getByRole("link", { name: "Pending reviews" }).click();
   await expect(page).toHaveURL("/dashboard/reviews");
@@ -235,6 +249,38 @@ test("presents the fictional clinic location without embedding a map", async ({ 
   await expect(page.locator("script")).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "Footer navigation" }).getByRole("link")).toHaveText(["Feedback", "Customer Reviews"]);
 
+  const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(hasHorizontalOverflow).toBe(false);
+});
+
+test("protects staff pages with accessible login and revocable logout", async ({ page }) => {
+  await page.goto("/dashboard/reviews");
+  await expect(page).toHaveURL(/\/login\?returnTo=%2Fdashboard%2Freviews$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Staff login" })).toBeVisible();
+  await expect(page.getByLabel("Email address")).toBeFocused();
+
+  await page.getByLabel("Email address").fill(staffEmail);
+  await page.getByLabel("Password").fill("Incorrect browser password");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("alert")).toBeFocused();
+  await expect(page.getByText("The email address or password is incorrect.", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Password")).toHaveValue("");
+
+  await page.getByLabel("Password").fill(staffPassword);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL("/dashboard/reviews");
+  await expect(page.getByRole("heading", { level: 1, name: "Review moderation" })).toBeVisible();
+  await expect(page.getByText("Signed in as", { exact: false })).toContainText("Browser Staff");
+
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page).toHaveURL("/login");
+  await expect(page.getByRole("heading", { level: 1, name: "Staff login" })).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/login(?:\?|$)/);
+  await expect(page.getByRole("heading", { level: 1, name: "Review moderation" })).toHaveCount(0);
+
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/login\?returnTo=%2Fdashboard$/);
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(hasHorizontalOverflow).toBe(false);
 });

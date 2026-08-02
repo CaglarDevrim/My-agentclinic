@@ -1,4 +1,5 @@
 import { Layout } from "../components/Layout.js";
+import type { StaffHeaderContext } from "../components/Header.js";
 import type { PublicReview, ReviewModerationItem } from "../db/types.js";
 
 function Rating({ value }: { value: number }) {
@@ -40,9 +41,9 @@ export function ReviewsPage({ reviews }: { reviews: PublicReview[] }) {
   );
 }
 
-export function ReviewModerationPage({ items }: { items: ReviewModerationItem[] }) {
+export function ReviewModerationPage({ items, staff }: { items: ReviewModerationItem[]; staff: StaffHeaderContext }) {
   return (
-    <Layout title="Review moderation | AgentClinic" activePath="/dashboard">
+    <Layout title="Review moderation | AgentClinic" activePath="/dashboard" staff={staff}>
       <header class="page-heading">
         <h1>Review moderation</h1>
         <p>Approve consented feedback for publication or remove a published review.</p>
@@ -63,6 +64,7 @@ export function ReviewModerationPage({ items }: { items: ReviewModerationItem[] 
                 <Rating value={item.rating} />
                 <p class="review-message">{item.message}</p>
                 <form method="post" action={`/dashboard/reviews/${item.id}/${published ? "unpublish" : "approve"}`}>
+                  <input type="hidden" name="_csrf" value={staff.csrfToken} />
                   <button class={`button${published ? " button--secondary" : ""}`} type="submit">
                     {published ? "Remove from reviews" : "Approve review"}
                   </button>
