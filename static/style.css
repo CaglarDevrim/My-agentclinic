@@ -368,6 +368,12 @@ tbody th {
   background: var(--surface);
 }
 
+.button--compact {
+  min-height: 2.25rem;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.82rem;
+}
+
 .form-shell,
 .confirmation,
 .error-page {
@@ -555,6 +561,16 @@ tbody th {
 .dashboard-section {
   min-width: 0;
   margin-top: 2rem;
+}
+
+.appointment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.appointment-actions form {
+  margin: 0;
 }
 
 .review-list,

@@ -180,7 +180,7 @@ export function AppointmentFormPage({
       <div class="form-shell">
         <PageHeading title={`Book care for ${agent.name}`} description="Choose a therapist and a future appointment time." />
         {hasErrors && (
-          <div class="error-summary" role="alert">
+          <div class="error-summary" role="alert" tabIndex={-1} autofocus>
             <h2>Please correct the following</h2>
             <ul>{Object.entries(errors).map(([field, message]) => <li><a href={`#${field}`}>{message}</a></li>)}</ul>
           </div>
@@ -242,10 +242,27 @@ export function DashboardPage({ data }: { data: DashboardData }) {
           <tr><th scope="row" data-label="Agent"><a href={`/agents/${agent.id}`}>{agent.name}</a></th><td data-label="Model">{agent.model}</td><td data-label="Status"><StatusText status={agent.status} /></td></tr>
         ))}
       </DashboardTable>
-      <DashboardTable title="Open appointments" headers={["Agent", "Therapist", "When", "Status"]}>
+      <DashboardTable title="Open appointments" headers={["Agent", "Therapist", "When", "Status", "Actions"]}>
         {data.appointments.length ? data.appointments.map((appointment) => (
-          <tr><th scope="row" data-label="Agent"><a href={`/agents/${appointment.agent_id}`}>{appointment.agent_name}</a></th><td data-label="Therapist">{appointment.therapist_name}</td><td data-label="When">{formatAppointment(appointment.scheduled_at)}</td><td data-label="Status"><StatusText status={appointment.status} /></td></tr>
-        )) : <tr class="empty-row"><td colspan={4}>No open appointments.</td></tr>}
+          <tr>
+            <th scope="row" data-label="Agent"><a href={`/agents/${appointment.agent_id}`}>{appointment.agent_name}</a></th>
+            <td data-label="Therapist">{appointment.therapist_name}</td>
+            <td data-label="When">{formatAppointment(appointment.scheduled_at)}</td>
+            <td data-label="Status"><StatusText status={appointment.status} /></td>
+            <td data-label="Actions">
+              <div class="appointment-actions">
+                {appointment.status === "pending" && (
+                  <form method="post" action={`/dashboard/appointments/${appointment.id}/confirm`}>
+                    <button class="button button--compact" type="submit" aria-label={`Confirm appointment for ${appointment.agent_name} with ${appointment.therapist_name}`}>Confirm</button>
+                  </form>
+                )}
+                <form method="post" action={`/dashboard/appointments/${appointment.id}/cancel`}>
+                  <button class="button button--secondary button--compact" type="submit" aria-label={`Cancel appointment for ${appointment.agent_name} with ${appointment.therapist_name}`}>Cancel</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        )) : <tr class="empty-row"><td colspan={5}>No open appointments.</td></tr>}
       </DashboardTable>
       <DashboardTable title="Ailment workload" headers={["Ailment", "Affected agents"]}>
         {data.ailments.map((ailment) => <tr><th scope="row" data-label="Ailment">{ailment.name}</th><td data-label="Affected agents">{ailment.agent_count}</td></tr>)}
@@ -263,7 +280,7 @@ function DashboardTable({ title, headers, children }: { title: string; headers: 
   );
 }
 
-export function ErrorPage({ status, title, message }: { status: 404 | 500; title: string; message: string }) {
+export function ErrorPage({ status, title, message }: { status: 404 | 409 | 500; title: string; message: string }) {
   return (
     <Layout title={`${status} ${title} | AgentClinic`}>
       <section class="error-page">

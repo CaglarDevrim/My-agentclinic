@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app.js";
-import { countFeedback, createFeedback, findFeedback, openDatabase, type ClinicDatabase } from "../src/db/index.js";
+import { countFeedback, createFeedback, findAppointment, findFeedback, getDashboard, openDatabase, type ClinicDatabase } from "../src/db/index.js";
 
 describe("AgentClinic routes", () => {
   let database!: ClinicDatabase;
@@ -116,6 +116,45 @@ describe("AgentClinic routes", () => {
     expect(html).toContain("2099-12-20 at 10:30");
   });
 
+  it("rejects normalized therapist slot collisions and preserves submitted values", async () => {
+    const before = Number((await database.execute("SELECT COUNT(*) AS count FROM appointments")).rows[0].count);
+    const response = await app.request("/agents/2/appointments", {
+      method: "POST",
+      body: new URLSearchParams({ therapistName: "  dr evelyn watts  ", date: "2099-01-15", time: "10:00" }),
+    });
+    const html = await response.text();
+    expect(response.status).toBe(422);
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('autofocus');
+    expect(html).toContain("This therapist already has an appointment at that time.");
+    expect(html).toContain('value="dr evelyn watts"');
+    expect(html).toContain('value="2099-01-15"');
+    expect(html).toContain('value="10:00"');
+    expect(Number((await database.execute("SELECT COUNT(*) AS count FROM appointments")).rows[0].count)).toBe(before);
+
+    const released = await app.request("/agents/2/appointments", {
+      method: "POST",
+      body: new URLSearchParams({ therapistName: "Dr Evelyn Watts", date: "2099-03-05", time: "09:00" }),
+    });
+    expect(released.status).toBe(303);
+  });
+
+  it("serializes concurrent booking requests into one creation and one accessible conflict", async () => {
+    const request = (agentId: number, therapistName: string) => app.request(`/agents/${agentId}/appointments`, {
+      method: "POST",
+      body: new URLSearchParams({ therapistName, date: "2099-12-22", time: "15:45" }),
+    });
+    const responses = await Promise.all([request(1, "Dr Route Race"), request(3, " dr route race ")]);
+    expect(responses.map((response) => response.status).sort()).toEqual([303, 422]);
+    const conflict = responses.find((response) => response.status === 422)!;
+    expect(await conflict.text()).toContain("This therapist already has an appointment at that time.");
+    const count = await database.execute({
+      sql: "SELECT COUNT(*) AS count FROM appointments WHERE lower(trim(therapist_name)) = lower(?) AND scheduled_at = ?",
+      args: ["Dr Route Race", "2099-12-22T15:45"],
+    });
+    expect(Number(count.rows[0].count)).toBe(1);
+  });
+
   it("renders dashboard metrics and excludes cancelled appointments", async () => {
     const response = await app.request("/dashboard");
     const html = await response.text();
@@ -125,8 +164,43 @@ describe("AgentClinic routes", () => {
     expect(html).toContain("Pending reviews");
     expect(html).toContain('href="/dashboard/reviews"');
     expect(html).toContain("Dr Marcus Chen");
+    expect(html).toContain("Actions");
+    expect(html).toContain('/dashboard/appointments/2/confirm');
+    expect(html).toContain('/dashboard/appointments/2/cancel');
+    expect(html).not.toContain('/dashboard/appointments/1/confirm');
+    expect(html).toContain('/dashboard/appointments/1/cancel');
     expect(html).not.toContain("cancelled</span>");
     expect(html).toMatch(/href="\/dashboard" aria-current="page"/);
+  });
+
+  it("manages appointment statuses with controlled POST-only transitions", async () => {
+    expect((await app.request("/dashboard/appointments/2/confirm")).status).toBe(404);
+    for (const value of ["0", "-1", "1.5", "unknown", "9007199254740992", "999"]) {
+      expect((await app.request(`/dashboard/appointments/${value}/confirm`, { method: "POST" })).status).toBe(404);
+      expect((await app.request(`/dashboard/appointments/${value}/cancel`, { method: "POST" })).status).toBe(404);
+    }
+
+    const confirm = await app.request("/dashboard/appointments/2/confirm", { method: "POST" });
+    expect(confirm.status).toBe(303);
+    expect(confirm.headers.get("location")).toBe("/dashboard");
+    expect((await findAppointment(database, 3, 2))?.status).toBe("confirmed");
+    expect((await app.request("/dashboard/appointments/2/confirm", { method: "POST" })).status).toBe(303);
+
+    const openBeforeCancel = (await getDashboard(database)).openAppointments;
+    const beforeCancel = (await (await app.request("/dashboard")).text());
+    expect(beforeCancel).toContain("Dr Marcus Chen");
+    const cancel = await app.request("/dashboard/appointments/2/cancel", { method: "POST" });
+    expect(cancel.status).toBe(303);
+    expect(cancel.headers.get("location")).toBe("/dashboard");
+    expect((await findAppointment(database, 3, 2))?.status).toBe("cancelled");
+    expect((await getDashboard(database)).openAppointments).toBe(openBeforeCancel - 1);
+    expect((await app.request("/dashboard/appointments/2/cancel", { method: "POST" })).status).toBe(303);
+    expect(await (await app.request("/dashboard")).text()).not.toContain("Dr Marcus Chen");
+
+    const prohibited = await app.request("/dashboard/appointments/2/confirm", { method: "POST" });
+    expect(prohibited.status).toBe(409);
+    expect(await prohibited.text()).toContain("A cancelled appointment cannot be confirmed.");
+    expect((await findAppointment(database, 3, 2))?.status).toBe("cancelled");
   });
 
   it("uses branded 404 responses for unknown records and routes", async () => {
