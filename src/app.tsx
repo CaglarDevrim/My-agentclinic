@@ -10,6 +10,7 @@ import { AgentDetailPage, AgentsPage, AilmentsPage, AppointmentConfirmationPage,
 import { HomePage } from "./pages/HomePage.js";
 import { FeedbackPage, FeedbackThanksPage } from "./pages/FeedbackPage.js";
 import { ReviewModerationPage, ReviewsPage } from "./pages/ReviewPages.js";
+import { AboutPage } from "./pages/AboutPage.js";
 
 export type RequestLogger = (message: string) => void;
 
@@ -68,6 +69,7 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
     return context.redirect("/dashboard/reviews", 303);
   });
   app.get("/reviews", async (context) => context.render(<ReviewsPage reviews={await listPublicReviews(db)} />));
+  app.get("/about", (context) => context.render(<AboutPage />));
   app.get("/feedback", (context) => context.render(<FeedbackPage />));
   app.get("/feedback/thanks", (context) => context.render(<FeedbackThanksPage />));
   app.post("/feedback", async (context) => {

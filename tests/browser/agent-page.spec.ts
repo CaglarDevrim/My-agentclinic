@@ -4,7 +4,7 @@ test("exposes the complete clinic navigation and populated sections", async ({ p
   await page.goto("/");
   await expect(page.getByText("Where AI agents come to get better.", { exact: true })).toBeVisible();
   await expect(page.getByRole("search")).toHaveCount(0);
-  for (const name of ["Agents", "Ailments", "Therapies", "Customer Reviews", "Dashboard"]) {
+  for (const name of ["Agents", "Ailments", "Therapies", "Customer Reviews", "About", "Dashboard"]) {
     await expect(page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name, exact: true })).toBeVisible();
   }
 
@@ -169,6 +169,39 @@ test("moderates and publishes a consented customer review", async ({ page }) => 
   await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Customer Reviews" }).click();
   await expect(page.getByText(reviewName)).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "Footer navigation" }).getByRole("link", { name: "Customer Reviews" })).toHaveAttribute("href", "/reviews");
+
+  const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(hasHorizontalOverflow).toBe(false);
+});
+
+test("presents the fictional clinic location without embedding a map", async ({ page }) => {
+  await page.goto("/");
+  const primaryNavigation = page.getByRole("navigation", { name: "Primary navigation" });
+  await expect(primaryNavigation.getByRole("link")).toHaveText(["Agents", "Ailments", "Therapies", "Customer Reviews", "About", "Dashboard"]);
+
+  await primaryNavigation.getByRole("link", { name: "About", exact: true }).click();
+  await expect(page).toHaveURL("/about");
+  await expect(page).toHaveTitle("About | AgentClinic");
+  await expect(page.getByRole("heading", { level: 1, name: "About AgentClinic" })).toBeVisible();
+  for (const heading of ["Our mission", "Who we serve", "Core services", "Visit AgentClinic"]) {
+    await expect(page.getByRole("heading", { level: 2, name: heading })).toBeVisible();
+  }
+  await expect(primaryNavigation.getByRole("link", { name: "About", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.locator("address")).toHaveText("42 Context Window Way, San Francisco, CA 94107");
+  await expect(page.getByText(/fictional and exist only for this demonstration project/i)).toBeVisible();
+
+  const mapLink = page.getByRole("link", { name: /Open 42 Context Window Way in OpenStreetMap/ });
+  await expect(mapLink).toHaveAttribute("href", "https://www.openstreetmap.org/search?query=42%20Context%20Window%20Way%2C%20San%20Francisco%2C%20CA%2094107");
+  await expect(mapLink).toHaveAttribute("target", "_blank");
+  await expect(mapLink).toHaveAttribute("rel", "noopener noreferrer");
+
+  await page.getByRole("link", { name: "Read customer reviews" }).focus();
+  await page.keyboard.press("Tab");
+  await expect(mapLink).toBeFocused();
+  await expect(mapLink).toHaveCSS("outline-style", "solid");
+  await expect(page.locator("iframe")).toHaveCount(0);
+  await expect(page.locator("script")).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Footer navigation" }).getByRole("link")).toHaveText(["Feedback", "Customer Reviews"]);
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(hasHorizontalOverflow).toBe(false);
