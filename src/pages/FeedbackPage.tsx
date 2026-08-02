@@ -68,7 +68,7 @@ export function FeedbackPage({ errors = {}, values = emptyFeedbackValues }: Feed
 
           <label class="consent-option" for="publicConsent">
             <input id="publicConsent" name="publicConsent" type="checkbox" value="yes" checked={values.publicConsent} aria-describedby="consent-hint" />
-            <span>AgentClinic may consider this feedback for a future public review.</span>
+            <span>AgentClinic may consider this feedback for a public customer review.</span>
           </label>
           <p class="field-hint" id="consent-hint">Optional. Consent does not publish your feedback; staff approval will still be required.</p>
 

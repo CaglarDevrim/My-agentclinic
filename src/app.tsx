@@ -2,13 +2,14 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { jsxRenderer } from "hono/jsx-renderer";
 
-import { createAppointment, createFeedback, findAgent, findAppointment, getDashboard, listAgents, listAilments, listTherapies, type ClinicDatabase } from "./db/index.js";
+import { approveReview, createAppointment, createFeedback, findAgent, findAppointment, getDashboard, listAgents, listAilments, listPublicReviews, listReviewModerationItems, listTherapies, unpublishReview, type ClinicDatabase } from "./db/index.js";
 import { findAgentBySlug } from "./domain/care.js";
 import { validateFeedback, type FeedbackValues } from "./domain/feedback.js";
 import { AgentPage } from "./pages/AgentPage.js";
 import { AgentDetailPage, AgentsPage, AilmentsPage, AppointmentConfirmationPage, AppointmentFormPage, DashboardPage, ErrorPage, TherapiesPage, type AppointmentErrors, type AppointmentValues } from "./pages/ClinicPages.js";
 import { HomePage } from "./pages/HomePage.js";
 import { FeedbackPage, FeedbackThanksPage } from "./pages/FeedbackPage.js";
+import { ReviewModerationPage, ReviewsPage } from "./pages/ReviewPages.js";
 
 export type RequestLogger = (message: string) => void;
 
@@ -55,6 +56,18 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
   app.get("/ailments", async (context) => context.render(<AilmentsPage ailments={await listAilments(db)} />));
   app.get("/therapies", async (context) => context.render(<TherapiesPage therapies={await listTherapies(db)} />));
   app.get("/dashboard", async (context) => context.render(<DashboardPage data={await getDashboard(db)} />));
+  app.get("/dashboard/reviews", async (context) => context.render(<ReviewModerationPage items={await listReviewModerationItems(db)} />));
+  app.post("/dashboard/reviews/:feedbackId/approve", async (context) => {
+    const id = parsePositiveId(context.req.param("feedbackId"));
+    if (!id || !await approveReview(db, id)) return context.notFound();
+    return context.redirect("/dashboard/reviews", 303);
+  });
+  app.post("/dashboard/reviews/:feedbackId/unpublish", async (context) => {
+    const id = parsePositiveId(context.req.param("feedbackId"));
+    if (!id || !await unpublishReview(db, id)) return context.notFound();
+    return context.redirect("/dashboard/reviews", 303);
+  });
+  app.get("/reviews", async (context) => context.render(<ReviewsPage reviews={await listPublicReviews(db)} />));
   app.get("/feedback", (context) => context.render(<FeedbackPage />));
   app.get("/feedback/thanks", (context) => context.render(<FeedbackThanksPage />));
   app.post("/feedback", async (context) => {

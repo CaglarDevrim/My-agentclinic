@@ -4,7 +4,7 @@ import { createClient, type Client, type ResultSet } from "@libsql/client";
 
 import { migrateDatabase } from "./migrate.js";
 import { seedDatabase } from "./seed.js";
-import type { AgentDetail, AgentRecord, AilmentRecord, AilmentSummary, AppointmentRecord, DashboardData, FeedbackInput, FeedbackRecord, TherapyRecord, TherapySummary } from "./types.js";
+import type { AgentDetail, AgentRecord, AilmentRecord, AilmentSummary, AppointmentRecord, DashboardData, FeedbackInput, FeedbackRecord, PublicReview, ReviewModerationItem, TherapyRecord, TherapySummary } from "./types.js";
 
 export type ClinicDatabase = Client;
 
@@ -107,18 +107,20 @@ export async function findAppointment(db: ClinicDatabase, agentId: number, appoi
 }
 
 export async function getDashboard(db: ClinicDatabase): Promise<DashboardData> {
-  const [agents, appointmentsResult, ailmentsResult, agentCount, appointmentCount, ailmentCount] = await Promise.all([
+  const [agents, appointmentsResult, ailmentsResult, agentCount, appointmentCount, ailmentCount, pendingReviewCount] = await Promise.all([
     listAgents(db),
     db.execute("SELECT ap.id, ap.agent_id, ag.name AS agent_name, ap.therapist_name, ap.scheduled_at, ap.status, ap.created_at FROM appointments ap JOIN agents ag ON ag.id = ap.agent_id WHERE ap.status IN ('pending', 'confirmed') ORDER BY ap.scheduled_at, ap.id"),
     db.execute("SELECT a.id, a.name, a.description, COUNT(aa.agent_id) AS agent_count FROM ailments a LEFT JOIN agent_ailments aa ON aa.ailment_id = a.id GROUP BY a.id ORDER BY a.name"),
     db.execute("SELECT COUNT(*) AS count FROM agents"),
     db.execute("SELECT COUNT(*) AS count FROM appointments WHERE status IN ('pending', 'confirmed')"),
     db.execute("SELECT COUNT(DISTINCT aa.ailment_id) AS count FROM agent_ailments aa JOIN agents ag ON ag.id = aa.agent_id WHERE ag.status = 'active'"),
+    db.execute("SELECT COUNT(*) AS count FROM feedback WHERE public_consent = 1 AND approved_at IS NULL"),
   ]);
   return {
     totalAgents: firstAs<{ count: number }>(agentCount)?.count ?? 0,
     openAppointments: firstAs<{ count: number }>(appointmentCount)?.count ?? 0,
     activeAilments: firstAs<{ count: number }>(ailmentCount)?.count ?? 0,
+    pendingReviews: firstAs<{ count: number }>(pendingReviewCount)?.count ?? 0,
     agents,
     appointments: rowsAs<AppointmentRecord>(appointmentsResult),
     ailments: rowsAs<Array<AilmentRecord & { agent_count: number }>[number]>(ailmentsResult),
@@ -135,9 +137,54 @@ export async function createFeedback(db: ClinicDatabase, input: FeedbackInput): 
 }
 
 export async function findFeedback(db: ClinicDatabase, id: number): Promise<FeedbackRecord | undefined> {
-  return firstAs<FeedbackRecord>(await db.execute({ sql: "SELECT id, name, email, message, rating, public_consent, created_at FROM feedback WHERE id = ?", args: [id] }));
+  return firstAs<FeedbackRecord>(await db.execute({ sql: "SELECT id, name, email, message, rating, public_consent, created_at, approved_at FROM feedback WHERE id = ?", args: [id] }));
 }
 
 export async function countFeedback(db: ClinicDatabase): Promise<number> {
   return firstAs<{ count: number }>(await db.execute("SELECT COUNT(*) AS count FROM feedback"))?.count ?? 0;
+}
+
+export async function listReviewModerationItems(db: ClinicDatabase): Promise<ReviewModerationItem[]> {
+  return rowsAs<ReviewModerationItem>(await db.execute(`
+    SELECT id, name, message, rating, created_at, approved_at
+    FROM feedback
+    WHERE public_consent = 1
+    ORDER BY (approved_at IS NOT NULL), created_at DESC, id DESC
+  `));
+}
+
+export async function countPendingReviews(db: ClinicDatabase): Promise<number> {
+  return firstAs<{ count: number }>(await db.execute("SELECT COUNT(*) AS count FROM feedback WHERE public_consent = 1 AND approved_at IS NULL"))?.count ?? 0;
+}
+
+async function consentedFeedbackExists(db: ClinicDatabase, id: number): Promise<boolean> {
+  return Boolean(firstAs<{ id: number }>(await db.execute({
+    sql: "SELECT id FROM feedback WHERE id = ? AND public_consent = 1",
+    args: [id],
+  })));
+}
+
+export async function approveReview(db: ClinicDatabase, id: number): Promise<boolean> {
+  const result = await db.execute({
+    sql: "UPDATE feedback SET approved_at = CURRENT_TIMESTAMP WHERE id = ? AND public_consent = 1 AND approved_at IS NULL",
+    args: [id],
+  });
+  return result.rowsAffected > 0 || consentedFeedbackExists(db, id);
+}
+
+export async function unpublishReview(db: ClinicDatabase, id: number): Promise<boolean> {
+  const result = await db.execute({
+    sql: "UPDATE feedback SET approved_at = NULL WHERE id = ? AND public_consent = 1 AND approved_at IS NOT NULL",
+    args: [id],
+  });
+  return result.rowsAffected > 0 || consentedFeedbackExists(db, id);
+}
+
+export async function listPublicReviews(db: ClinicDatabase): Promise<PublicReview[]> {
+  return rowsAs<PublicReview>(await db.execute(`
+    SELECT name, message, rating
+    FROM feedback
+    WHERE public_consent = 1 AND approved_at IS NOT NULL
+    ORDER BY approved_at DESC, id DESC
+  `));
 }

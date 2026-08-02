@@ -25,7 +25,7 @@ Responsive behavior, accessibility, server-side validation, persistence tests, a
 
 At this point, visitors can submit dependable feedback without requiring client-side JavaScript.
 
-## Phase 2 — Customer Reviews
+## Phase 2 — Customer Reviews ✅
 
 - Add staff review and approval of stored feedback
 - Add a public customer-reviews page

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { countFeedback, createAppointment, createDatabase, createFeedback, findAgent, findAppointment, findFeedback, getDatabaseConfig, getDashboard, listAgents, listAilments, listTherapies, openDatabase } from "../src/db/index.js";
+import { approveReview, countFeedback, countPendingReviews, createAppointment, createDatabase, createFeedback, findAgent, findAppointment, findFeedback, getDatabaseConfig, getDashboard, listAgents, listAilments, listPublicReviews, listReviewModerationItems, listTherapies, openDatabase, unpublishReview } from "../src/db/index.js";
 import { migrateDatabase } from "../src/db/migrate.js";
 import { seedDatabase } from "../src/db/seed.js";
 
@@ -25,7 +25,7 @@ describe("clinic database", () => {
     const db = await openDatabase();
     await migrateDatabase(db);
     await seedDatabase(db);
-    expect(Number((await db.execute("SELECT COUNT(*) AS count FROM schema_migrations")).rows[0].count)).toBe(7);
+    expect(Number((await db.execute("SELECT COUNT(*) AS count FROM schema_migrations")).rows[0].count)).toBe(8);
     expect(await listAgents(db)).toHaveLength(6);
     expect(await listAilments(db)).toHaveLength(6);
     expect(await listTherapies(db)).toHaveLength(8);
@@ -56,6 +56,9 @@ describe("clinic database", () => {
       publicConsent: true,
     });
     expect(await countFeedback(db)).toBe(1);
+    expect(await approveReview(db, id)).toBe(true);
+    const approvedAt = (await findFeedback(db, id))?.approved_at;
+    expect(approvedAt).toEqual(expect.any(String));
     db.close();
     db = await openDatabase(path);
     expect(await findFeedback(db, id)).toMatchObject({
@@ -63,7 +66,59 @@ describe("clinic database", () => {
       email: "patch@example.com",
       rating: 5,
       public_consent: 1,
+      approved_at: approvedAt,
     });
+    expect(await listPublicReviews(db)).toEqual([{ name: "Patch", message: "A calm and restorative clinic visit.", rating: 5 }]);
+    db.close();
+  });
+
+  it("moderates only consented feedback with idempotent actions and restricted public projections", async () => {
+    const db = await openDatabase();
+    const privateId = await createFeedback(db, {
+      name: "Private Agent",
+      email: "private@example.com",
+      message: "This feedback must remain private forever.",
+      rating: 2,
+      publicConsent: false,
+    });
+    const firstId = await createFeedback(db, {
+      name: "First Agent",
+      email: "first@example.com",
+      message: "The first consented review message.",
+      rating: 4,
+      publicConsent: true,
+    });
+    const secondId = await createFeedback(db, {
+      name: "Second Agent",
+      email: "second@example.com",
+      message: "The second consented review message.",
+      rating: 5,
+      publicConsent: true,
+    });
+
+    expect((await listReviewModerationItems(db)).map((item) => item.id)).toEqual([secondId, firstId]);
+    expect(await countPendingReviews(db)).toBe(2);
+    expect((await getDashboard(db)).pendingReviews).toBe(2);
+    expect(await approveReview(db, privateId)).toBe(false);
+    expect(await unpublishReview(db, privateId)).toBe(false);
+
+    expect(await approveReview(db, firstId)).toBe(true);
+    const firstApprovedAt = (await findFeedback(db, firstId))?.approved_at;
+    expect(firstApprovedAt).toEqual(expect.any(String));
+    expect(await approveReview(db, firstId)).toBe(true);
+    expect((await findFeedback(db, firstId))?.approved_at).toBe(firstApprovedAt);
+    expect(await countPendingReviews(db)).toBe(1);
+
+    await db.execute({ sql: "UPDATE feedback SET approved_at = CURRENT_TIMESTAMP WHERE id = ?", args: [privateId] });
+    expect(await approveReview(db, secondId)).toBe(true);
+    const publicReviews = await listPublicReviews(db);
+    expect(publicReviews.map((review) => review.name)).toEqual(["Second Agent", "First Agent"]);
+    expect(Object.keys(publicReviews[0]).sort()).toEqual(["message", "name", "rating"]);
+    expect((await listReviewModerationItems(db)).some((item) => item.id === privateId)).toBe(false);
+
+    expect(await unpublishReview(db, secondId)).toBe(true);
+    expect(await unpublishReview(db, secondId)).toBe(true);
+    expect((await listPublicReviews(db)).map((review) => review.name)).toEqual(["First Agent"]);
     db.close();
   });
 });
