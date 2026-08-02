@@ -2,7 +2,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { jsxRenderer } from "hono/jsx-renderer";
 
-import { approveReview, createAppointment, createFeedback, findAgent, findAppointment, getDashboard, listAgents, listAilments, listPublicReviews, listReviewModerationItems, listTherapies, unpublishReview, type ClinicDatabase } from "./db/index.js";
+import { approveReview, cancelAppointment, confirmAppointment, createAppointment, createFeedback, findAgent, findAppointment, getDashboard, listAgents, listAilments, listPublicReviews, listReviewModerationItems, listTherapies, unpublishReview, type ClinicDatabase } from "./db/index.js";
 import { findAgentBySlug } from "./domain/care.js";
 import { validateFeedback, type FeedbackValues } from "./domain/feedback.js";
 import { AgentPage } from "./pages/AgentPage.js";
@@ -57,6 +57,28 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
   app.get("/ailments", async (context) => context.render(<AilmentsPage ailments={await listAilments(db)} />));
   app.get("/therapies", async (context) => context.render(<TherapiesPage therapies={await listTherapies(db)} />));
   app.get("/dashboard", async (context) => context.render(<DashboardPage data={await getDashboard(db)} />));
+  app.post("/dashboard/appointments/:appointmentId/confirm", async (context) => {
+    const id = parsePositiveId(context.req.param("appointmentId"));
+    if (!id) return context.notFound();
+    const result = await confirmAppointment(db, id);
+    if (result === "not_found") return context.notFound();
+    if (result === "invalid_transition") {
+      context.status(409);
+      return context.render(<ErrorPage status={409} title="Appointment conflict" message="A cancelled appointment cannot be confirmed." />);
+    }
+    return context.redirect("/dashboard", 303);
+  });
+  app.post("/dashboard/appointments/:appointmentId/cancel", async (context) => {
+    const id = parsePositiveId(context.req.param("appointmentId"));
+    if (!id) return context.notFound();
+    const result = await cancelAppointment(db, id);
+    if (result === "not_found") return context.notFound();
+    if (result === "invalid_transition") {
+      context.status(409);
+      return context.render(<ErrorPage status={409} title="Appointment conflict" message="This appointment cannot be cancelled from its current state." />);
+    }
+    return context.redirect("/dashboard", 303);
+  });
   app.get("/dashboard/reviews", async (context) => context.render(<ReviewModerationPage items={await listReviewModerationItems(db)} />));
   app.post("/dashboard/reviews/:feedbackId/approve", async (context) => {
     const id = parsePositiveId(context.req.param("feedbackId"));
@@ -127,8 +149,13 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
       context.status(422);
       return context.render(<AppointmentFormPage agent={agent} values={values} errors={errors} />);
     }
-    const appointmentId = await createAppointment(db, { agentId: id, therapistName: values.therapistName, scheduledAt: `${values.date}T${values.time}` });
-    return context.redirect(`/agents/${id}/appointments/${appointmentId}`, 303);
+    const result = await createAppointment(db, { agentId: id, therapistName: values.therapistName, scheduledAt: `${values.date}T${values.time}` });
+    if (result.status === "conflict") {
+      errors.therapistName = "This therapist already has an appointment at that time.";
+      context.status(422);
+      return context.render(<AppointmentFormPage agent={agent} values={values} errors={errors} />);
+    }
+    return context.redirect(`/agents/${id}/appointments/${result.appointmentId}`, 303);
   });
 
   app.get("/agents/:agentId/appointments/:appointmentId", async (context) => {

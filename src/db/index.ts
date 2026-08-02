@@ -4,7 +4,7 @@ import { createClient, type Client, type ResultSet } from "@libsql/client";
 
 import { migrateDatabase } from "./migrate.js";
 import { seedDatabase } from "./seed.js";
-import type { AgentDetail, AgentRecord, AilmentRecord, AilmentSummary, AppointmentRecord, DashboardData, FeedbackInput, FeedbackRecord, PublicReview, ReviewModerationItem, TherapyRecord, TherapySummary } from "./types.js";
+import type { AgentDetail, AgentRecord, AilmentRecord, AilmentSummary, AppointmentRecord, AppointmentStatus, DashboardData, FeedbackInput, FeedbackRecord, PublicReview, ReviewModerationItem, TherapyRecord, TherapySummary } from "./types.js";
 
 export type ClinicDatabase = Client;
 
@@ -96,14 +96,70 @@ export async function listTherapies(db: ClinicDatabase): Promise<TherapySummary[
   return rows.map((row) => ({ ...row, ailments: ailments.filter((item) => item.therapy_id === row.id).map(({ therapy_id: _therapyId, ...ailment }) => ailment) }));
 }
 
-export async function createAppointment(db: ClinicDatabase, input: { agentId: number; therapistName: string; scheduledAt: string }): Promise<number> {
-  const result = await db.execute({ sql: "INSERT INTO appointments (agent_id, therapist_name, scheduled_at, status) VALUES (?, ?, ?, 'pending')", args: [input.agentId, input.therapistName, input.scheduledAt] });
-  if (result.lastInsertRowid === undefined) throw new Error("Appointment insert did not return an ID.");
-  return Number(result.lastInsertRowid);
+export type AppointmentCreationResult =
+  | { status: "created"; appointmentId: number }
+  | { status: "conflict" };
+
+export type AppointmentTransitionResult = "updated" | "unchanged" | "not_found" | "invalid_transition";
+
+async function hasOpenAppointmentSlot(db: ClinicDatabase, therapistName: string, scheduledAt: string): Promise<boolean> {
+  return Boolean(firstAs<{ id: number }>(await db.execute({
+    sql: "SELECT id FROM appointments WHERE lower(trim(therapist_name)) = lower(?) AND scheduled_at = ? AND status IN ('pending', 'confirmed') LIMIT 1",
+    args: [therapistName.trim(), scheduledAt],
+  })));
+}
+
+function isSqliteConstraintError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; message?: unknown };
+  return String(candidate.code ?? "").includes("SQLITE_CONSTRAINT") || String(candidate.message ?? "").includes("UNIQUE constraint failed");
+}
+
+export async function createAppointment(db: ClinicDatabase, input: { agentId: number; therapistName: string; scheduledAt: string }): Promise<AppointmentCreationResult> {
+  const therapistName = input.therapistName.trim();
+  if (await hasOpenAppointmentSlot(db, therapistName, input.scheduledAt)) return { status: "conflict" };
+
+  try {
+    const result = await db.execute({ sql: "INSERT INTO appointments (agent_id, therapist_name, scheduled_at, status) VALUES (?, ?, ?, 'pending')", args: [input.agentId, therapistName, input.scheduledAt] });
+    if (result.lastInsertRowid === undefined) throw new Error("Appointment insert did not return an ID.");
+    return { status: "created", appointmentId: Number(result.lastInsertRowid) };
+  } catch (error) {
+    if (isSqliteConstraintError(error) && await hasOpenAppointmentSlot(db, therapistName, input.scheduledAt)) return { status: "conflict" };
+    throw error;
+  }
 }
 
 export async function findAppointment(db: ClinicDatabase, agentId: number, appointmentId: number): Promise<AppointmentRecord | undefined> {
   return firstAs<AppointmentRecord>(await db.execute({ sql: "SELECT ap.id, ap.agent_id, ag.name AS agent_name, ap.therapist_name, ap.scheduled_at, ap.status, ap.created_at FROM appointments ap JOIN agents ag ON ag.id = ap.agent_id WHERE ap.agent_id = ? AND ap.id = ?", args: [agentId, appointmentId] }));
+}
+
+async function findAppointmentStatus(db: ClinicDatabase, appointmentId: number): Promise<AppointmentStatus | undefined> {
+  return firstAs<{ status: AppointmentStatus }>(await db.execute({
+    sql: "SELECT status FROM appointments WHERE id = ?",
+    args: [appointmentId],
+  }))?.status;
+}
+
+export async function confirmAppointment(db: ClinicDatabase, appointmentId: number): Promise<AppointmentTransitionResult> {
+  const result = await db.execute({
+    sql: "UPDATE appointments SET status = 'confirmed' WHERE id = ? AND status = 'pending'",
+    args: [appointmentId],
+  });
+  if (result.rowsAffected > 0) return "updated";
+  const status = await findAppointmentStatus(db, appointmentId);
+  if (!status) return "not_found";
+  return status === "confirmed" ? "unchanged" : "invalid_transition";
+}
+
+export async function cancelAppointment(db: ClinicDatabase, appointmentId: number): Promise<AppointmentTransitionResult> {
+  const result = await db.execute({
+    sql: "UPDATE appointments SET status = 'cancelled' WHERE id = ? AND status IN ('pending', 'confirmed')",
+    args: [appointmentId],
+  });
+  if (result.rowsAffected > 0) return "updated";
+  const status = await findAppointmentStatus(db, appointmentId);
+  if (!status) return "not_found";
+  return status === "cancelled" ? "unchanged" : "invalid_transition";
 }
 
 export async function getDashboard(db: ClinicDatabase): Promise<DashboardData> {

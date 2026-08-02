@@ -40,9 +40,15 @@ At this point, visitors can submit dependable feedback without requiring client-
 - Avoid embedded tracking, map SDKs, and API keys
 - Add semantic, responsive, external-link, and production-browser validation
 
+## Phase 4 — Appointment Status Management and Slot-Collision Enforcement ✅
+
+- Add controlled pending, confirmed, and cancelled appointment transitions to the staff dashboard
+- Protect open therapist slots with normalized application checks and database uniqueness
+- Release cancelled slots and return accessible booking conflicts without losing form values
+- Add migration, persistence, concurrency, route, responsive, accessibility, and production-browser coverage
+
 ## Deferred
 
-- Appointment status management and slot-collision enforcement
 - Authentication and staff authorization enforcement
 - Notifications and reminders
 - Therapist accounts and schedules
