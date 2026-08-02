@@ -235,6 +235,7 @@ export function DashboardPage({ data }: { data: DashboardData }) {
         <div><dt>Total agents</dt><dd>{data.totalAgents}</dd></div>
         <div><dt>Open appointments</dt><dd>{data.openAppointments}</dd></div>
         <div><dt>Active ailments</dt><dd>{data.activeAilments}</dd></div>
+        <div><dt><a href="/dashboard/reviews">Pending reviews</a></dt><dd>{data.pendingReviews}</dd></div>
       </dl>
       <DashboardTable title="Agent status" headers={["Agent", "Model", "Status"]}>
         {data.agents.map((agent) => (

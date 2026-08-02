@@ -557,6 +557,89 @@ tbody th {
   margin-top: 2rem;
 }
 
+.review-list,
+.moderation-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.review-card,
+.moderation-card,
+.review-empty {
+  min-width: 0;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+}
+
+.review-card header,
+.moderation-card__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.review-rating,
+.review-submitted,
+.review-empty p {
+  color: var(--muted);
+}
+
+.review-rating {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.review-message {
+  margin: 0.85rem 0 0;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.review-submitted {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+}
+
+.review-status {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.review-status--published {
+  color: var(--success);
+  border-color: #315d40;
+}
+
+.review-status--pending {
+  color: var(--link-hover);
+  border-color: #315d77;
+}
+
+.moderation-card form {
+  margin-top: 1rem;
+}
+
+.review-empty h2 {
+  margin-bottom: 0.6rem;
+}
+
+.review-empty p {
+  line-height: 1.6;
+}
+
+.review-empty .page-actions {
+  margin-bottom: 0;
+}
+
 .empty-row td {
   display: block;
 }
@@ -628,6 +711,12 @@ tbody th {
   gap: 0.75rem 1.25rem;
   align-items: center;
   justify-content: space-between;
+}
+
+.site-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
 }
 
 @media (min-width: 641px) {
@@ -726,7 +815,7 @@ tbody th {
   }
 
   .metrics {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .metrics div {

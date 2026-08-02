@@ -1,0 +1,4 @@
+interface:
+  display_name: "Find Current Docs"
+  short_description: "Look up current library documentation with Context7"
+  default_prompt: "Use $find-docs to retrieve current documentation for the library or API in my request."

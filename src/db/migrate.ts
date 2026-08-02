@@ -1,40 +1,31 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type Database from "better-sqlite3";
 
-const migrationsDirectory = fileURLToPath(
-  new URL("./migrations/", import.meta.url),
-);
+import type { ClinicDatabase } from "./index.js";
 
-export function migrateDatabase(db: Database.Database): void {
-  db.exec(`
+const migrationsDirectory = fileURLToPath(new URL("./migrations/", import.meta.url));
+
+export async function migrateDatabase(db: ClinicDatabase): Promise<void> {
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       filename TEXT PRIMARY KEY,
       applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
-  const applied = new Set(
-    db
-      .prepare("SELECT filename FROM schema_migrations")
-      .all()
-      .map((row) => (row as { filename: string }).filename),
-  );
-
-  const migrations = readdirSync(migrationsDirectory)
-    .filter((filename) => /^\d+_.+\.sql$/.test(filename))
-    .sort();
-
-  const applyMigration = db.transaction((filename: string) => {
-    db.exec(readFileSync(`${migrationsDirectory}/${filename}`, "utf8"));
-    db.prepare("INSERT INTO schema_migrations (filename) VALUES (?)").run(
-      filename,
-    );
-  });
+  const appliedResult = await db.execute("SELECT filename FROM schema_migrations");
+  const applied = new Set(appliedResult.rows.map((row) => String(row.filename)));
+  const migrations = readdirSync(migrationsDirectory).filter((filename) => /^\d+_.+\.sql$/.test(filename)).sort();
 
   for (const filename of migrations) {
-    if (!applied.has(filename)) {
-      applyMigration(filename);
-    }
+    if (applied.has(filename)) continue;
+    const migrationSql = readFileSync(`${migrationsDirectory}/${filename}`, "utf8");
+    const trustedFilename = filename.replaceAll("'", "''");
+    await db.executeMultiple(`
+      BEGIN IMMEDIATE;
+      ${migrationSql}
+      INSERT INTO schema_migrations (filename) VALUES ('${trustedFilename}');
+      COMMIT;
+    `);
   }
 }

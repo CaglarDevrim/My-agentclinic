@@ -1,22 +1,21 @@
-import type Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app.js";
-import { countFeedback, findFeedback, openDatabase } from "../src/db/index.js";
+import { countFeedback, createFeedback, findFeedback, openDatabase, type ClinicDatabase } from "../src/db/index.js";
 
 describe("AgentClinic routes", () => {
-  let database: Database.Database;
+  let database!: ClinicDatabase;
   let app: ReturnType<typeof createApp>;
   const logger = vi.fn();
 
-  beforeEach(() => {
-    database = openDatabase();
+  beforeEach(async () => {
+    database = await openDatabase();
     logger.mockReset();
     app = createApp(database, { logger, now: () => new Date("2026-08-01T12:00:00") });
   });
 
   afterEach(() => {
-    if (database.open) database.close();
+    if (database && !database.closed) database.close();
   });
 
   it("reports the exact health contract and logs the response", async () => {
@@ -34,10 +33,14 @@ describe("AgentClinic routes", () => {
     expect(html).toContain("Where AI agents come to get better.");
     expect(html).not.toContain('role="search"');
     expect(html).not.toContain("feature-card");
-    for (const [path, label] of [["/agents", "Agents"], ["/ailments", "Ailments"], ["/therapies", "Therapies"], ["/dashboard", "Dashboard"]]) {
+    for (const [path, label] of [["/agents", "Agents"], ["/ailments", "Ailments"], ["/therapies", "Therapies"], ["/reviews", "Customer Reviews"], ["/dashboard", "Dashboard"]]) {
       expect(html).toContain(`href="${path}"`);
       expect(html).toContain(`>${label}<`);
     }
+    expect(html.indexOf('href="/agents"')).toBeLessThan(html.indexOf('href="/ailments"'));
+    expect(html.indexOf('href="/ailments"')).toBeLessThan(html.indexOf('href="/therapies"'));
+    expect(html.indexOf('href="/therapies"')).toBeLessThan(html.indexOf('href="/reviews"'));
+    expect(html.indexOf('href="/reviews"')).toBeLessThan(html.indexOf('href="/dashboard"'));
     expect(html).not.toMatch(/<script\b/i);
   });
 
@@ -89,14 +92,14 @@ describe("AgentClinic routes", () => {
   });
 
   it("returns accessible 422 errors without writing invalid appointments", async () => {
-    const before = (database.prepare("SELECT COUNT(*) AS count FROM appointments").get() as { count: number }).count;
+    const before = Number((await database.execute("SELECT COUNT(*) AS count FROM appointments")).rows[0].count);
     const response = await app.request("/agents/1/appointments", { method: "POST", body: new URLSearchParams({ therapistName: "", date: "2025-01-01", time: "10:00" }) });
     const html = await response.text();
     expect(response.status).toBe(422);
     expect(html).toContain('role="alert"');
     expect(html).toContain('aria-invalid="true"');
     expect(html).toContain("Choose an appointment in the future.");
-    const after = (database.prepare("SELECT COUNT(*) AS count FROM appointments").get() as { count: number }).count;
+    const after = Number((await database.execute("SELECT COUNT(*) AS count FROM appointments")).rows[0].count);
     expect(after).toBe(before);
   });
 
@@ -118,6 +121,8 @@ describe("AgentClinic routes", () => {
     expect(response.status).toBe(200);
     expect(html).toContain("Total agents");
     expect(html).toContain("Open appointments");
+    expect(html).toContain("Pending reviews");
+    expect(html).toContain('href="/dashboard/reviews"');
     expect(html).toContain("Dr Marcus Chen");
     expect(html).not.toContain("cancelled</span>");
     expect(html).toMatch(/href="\/dashboard" aria-current="page"/);
@@ -151,6 +156,8 @@ describe("AgentClinic routes", () => {
     expect(css).toContain("--background: #11161c");
     expect(css).toContain(".catalog-table");
     expect(css).toContain(".metrics");
+    expect(css).toContain(".review-card");
+    expect(css).toContain(".moderation-card");
     expect(css).toContain(".table-wrap");
     expect(css).toContain("@media (min-width: 641px)");
     expect(css).toContain('a[aria-current="page"]');
@@ -166,7 +173,7 @@ describe("AgentClinic routes", () => {
     for (const label of ["Name", "Email", "Message", "Rating"]) expect(html).toContain(label);
     expect(html).toContain('name="publicConsent" type="checkbox" value="yes"');
     expect(html).not.toContain('name="publicConsent" type="checkbox" value="yes" checked');
-    expect(html).toContain('<nav aria-label="Footer navigation"><a href="/feedback">Feedback</a></nav>');
+    expect(html).toContain('<nav aria-label="Footer navigation"><a href="/feedback">Feedback</a><a href="/reviews">Customer Reviews</a></nav>');
   });
 
   it("returns accessible 422 feedback errors without persistence", async () => {
@@ -176,7 +183,7 @@ describe("AgentClinic routes", () => {
     });
     const html = await response.text();
     expect(response.status).toBe(422);
-    expect(countFeedback(database)).toBe(0);
+    expect(await countFeedback(database)).toBe(0);
     expect(html).toContain('role="alert"');
     expect(html).toContain('aria-invalid="true"');
     expect(html).toContain('&lt;b&gt;Patch&lt;/b&gt;');
@@ -191,8 +198,8 @@ describe("AgentClinic routes", () => {
     });
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe("/feedback/thanks");
-    expect(countFeedback(database)).toBe(1);
-    expect(findFeedback(database, 1)).toMatchObject({ name: "Patch", email: "patch@example.com", rating: 5, public_consent: 1 });
+    expect(await countFeedback(database)).toBe(1);
+    expect(await findFeedback(database, 1)).toMatchObject({ name: "Patch", email: "patch@example.com", rating: 5, public_consent: 1 });
 
     const confirmation = await app.request("/feedback/thanks");
     const html = await confirmation.text();
@@ -201,7 +208,7 @@ describe("AgentClinic routes", () => {
     expect(html).not.toContain("patch@example.com");
     expect(html).not.toContain("A calm and restorative clinic visit.");
     await app.request("/feedback/thanks");
-    expect(countFeedback(database)).toBe(1);
+    expect(await countFeedback(database)).toBe(1);
     expect(logger.mock.calls.flat().join(" ")).not.toContain("patch@example.com");
   });
 
@@ -213,13 +220,87 @@ describe("AgentClinic routes", () => {
     duplicateRating.append("rating", "4");
     duplicateRating.append("rating", "5");
     expect((await app.request("/feedback", { method: "POST", body: duplicateRating })).status).toBe(422);
-    expect(countFeedback(database)).toBe(0);
+    expect(await countFeedback(database)).toBe(0);
 
     const unsupportedConsent = await app.request("/feedback", {
       method: "POST",
       body: new URLSearchParams({ name: "Patch", email: "patch@example.com", message: "A calm and restorative clinic visit.", rating: "5", publicConsent: "true" }),
     });
     expect(unsupportedConsent.status).toBe(303);
-    expect(findFeedback(database, 1)?.public_consent).toBe(0);
+    expect((await findFeedback(database, 1))?.public_consent).toBe(0);
+  });
+
+  it("moderates consented feedback and publishes only the public projection", async () => {
+    const emptyReviews = await app.request("/reviews");
+    expect(emptyReviews.status).toBe(200);
+    expect(await emptyReviews.text()).toContain("No published reviews yet");
+    const emptyModeration = await app.request("/dashboard/reviews");
+    expect(emptyModeration.status).toBe(200);
+    expect(await emptyModeration.text()).toContain("No consented feedback");
+
+    const privateId = await createFeedback(database, {
+      name: "Private Agent",
+      email: "private@example.com",
+      message: "This private message must never be rendered.",
+      rating: 1,
+      publicConsent: false,
+    });
+    const publicId = await createFeedback(database, {
+      name: "<b>Review Agent</b>",
+      email: "review.agent@example.com",
+      message: "A <script>alert('no')</script> calm recovery.",
+      rating: 5,
+      publicConsent: true,
+    });
+
+    const dashboard = await app.request("/dashboard");
+    expect(await dashboard.text()).toMatch(/Pending reviews<\/a><\/dt><dd>1<\/dd>/);
+
+    const pending = await app.request("/dashboard/reviews");
+    const pendingHtml = await pending.text();
+    expect(pending.status).toBe(200);
+    expect(pendingHtml).toContain("Review moderation");
+    expect(pendingHtml).toContain("Approve review");
+    expect(pendingHtml).toContain("&lt;b&gt;Review Agent&lt;/b&gt;");
+    expect(pendingHtml).not.toContain("Private Agent");
+    expect(pendingHtml).not.toContain("private@example.com");
+    expect(pendingHtml).not.toContain("review.agent@example.com");
+    expect(pendingHtml).toMatch(/href="\/dashboard" aria-current="page"/);
+
+    expect((await app.request(`/dashboard/reviews/${privateId}/approve`, { method: "POST" })).status).toBe(404);
+    for (const value of ["0", "-1", "1.5", "unknown", "9007199254740992", "999"]) {
+      expect((await app.request(`/dashboard/reviews/${value}/approve`, { method: "POST" })).status).toBe(404);
+      expect((await app.request(`/dashboard/reviews/${value}/unpublish`, { method: "POST" })).status).toBe(404);
+    }
+    expect((await app.request(`/dashboard/reviews/${publicId}/approve`)).status).toBe(404);
+
+    const approval = await app.request(`/dashboard/reviews/${publicId}/approve`, { method: "POST" });
+    expect(approval.status).toBe(303);
+    expect(approval.headers.get("location")).toBe("/dashboard/reviews");
+    const approvedAt = (await findFeedback(database, publicId))?.approved_at;
+    expect(approvedAt).toEqual(expect.any(String));
+    expect((await app.request(`/dashboard/reviews/${publicId}/approve`, { method: "POST" })).status).toBe(303);
+    expect((await findFeedback(database, publicId))?.approved_at).toBe(approvedAt);
+
+    const reviews = await app.request("/reviews");
+    const reviewHtml = await reviews.text();
+    expect(reviews.status).toBe(200);
+    expect(reviewHtml).toContain("&lt;b&gt;Review Agent&lt;/b&gt;");
+    expect(reviewHtml).toContain("A &lt;script&gt;alert(&#39;no&#39;)&lt;/script&gt; calm recovery.");
+    expect(reviewHtml).toContain("Rating: <strong>5/5</strong>");
+    expect(reviewHtml).not.toContain("review.agent@example.com");
+    expect(reviewHtml).not.toContain("Private Agent");
+    expect(reviewHtml).not.toContain("Published");
+    expect(reviewHtml).not.toContain("/dashboard/reviews");
+    expect(reviewHtml).toMatch(/href="\/reviews" aria-current="page"/);
+
+    const published = await app.request("/dashboard/reviews");
+    expect(await published.text()).toContain("Remove from reviews");
+    const unpublish = await app.request(`/dashboard/reviews/${publicId}/unpublish`, { method: "POST" });
+    expect(unpublish.status).toBe(303);
+    expect(unpublish.headers.get("location")).toBe("/dashboard/reviews");
+    expect((await app.request(`/dashboard/reviews/${publicId}/unpublish`, { method: "POST" })).status).toBe(303);
+    expect(await (await app.request("/reviews")).text()).not.toContain("Review Agent");
+    expect(logger.mock.calls.flat().join(" ")).not.toContain("review.agent@example.com");
   });
 });

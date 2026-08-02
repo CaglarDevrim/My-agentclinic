@@ -50,6 +50,7 @@ export interface DashboardData {
   totalAgents: number;
   openAppointments: number;
   activeAilments: number;
+  pendingReviews: number;
   agents: AgentRecord[];
   appointments: AppointmentRecord[];
   ailments: Array<AilmentRecord & { agent_count: number }>;
@@ -71,4 +72,20 @@ export interface FeedbackRecord {
   rating: number;
   public_consent: 0 | 1;
   created_at: string;
+  approved_at: string | null;
+}
+
+export interface ReviewModerationItem {
+  id: number;
+  name: string;
+  message: string;
+  rating: number;
+  created_at: string;
+  approved_at: string | null;
+}
+
+export interface PublicReview {
+  name: string;
+  message: string;
+  rating: number;
 }

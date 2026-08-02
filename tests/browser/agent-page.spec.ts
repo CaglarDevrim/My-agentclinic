@@ -4,7 +4,7 @@ test("exposes the complete clinic navigation and populated sections", async ({ p
   await page.goto("/");
   await expect(page.getByText("Where AI agents come to get better.", { exact: true })).toBeVisible();
   await expect(page.getByRole("search")).toHaveCount(0);
-  for (const name of ["Agents", "Ailments", "Therapies", "Dashboard"]) {
+  for (const name of ["Agents", "Ailments", "Therapies", "Customer Reviews", "Dashboard"]) {
     await expect(page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name, exact: true })).toBeVisible();
   }
 
@@ -90,7 +90,7 @@ test("submits private feedback through an accessible responsive journey", async 
   await page.getByRole("navigation", { name: "Footer navigation" }).getByRole("link", { name: "Feedback" }).click();
   await expect(page).toHaveURL("/feedback");
   await expect(page.getByRole("heading", { level: 1, name: "Feedback" })).toBeVisible();
-  await expect(page.getByRole("checkbox", { name: /future public review/i })).not.toBeChecked();
+  await expect(page.getByRole("checkbox", { name: /public customer review/i })).not.toBeChecked();
 
   await page.getByRole("button", { name: "Send feedback" }).click();
   await expect(page.getByRole("alert")).toBeVisible();
@@ -103,7 +103,7 @@ test("submits private feedback through an accessible responsive journey", async 
   await page.getByLabel("Email").fill("browser.agent@example.com");
   await page.getByLabel("Message").fill("The clinic experience was calm, clear, and restorative.");
   await page.getByRole("radio", { name: "5 - Fully recharged" }).check();
-  await page.getByRole("checkbox", { name: /future public review/i }).check();
+  await page.getByRole("checkbox", { name: /public customer review/i }).check();
   await page.getByRole("button", { name: "Send feedback" }).click();
 
   await expect(page).toHaveURL("/feedback/thanks");
@@ -112,6 +112,63 @@ test("submits private feedback through an accessible responsive journey", async 
   await expect(page.getByText("The clinic experience was calm, clear, and restorative.")).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("heading", { level: 1, name: "Thank you for your feedback" })).toBeVisible();
+
+  const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(hasHorizontalOverflow).toBe(false);
+});
+
+test("moderates and publishes a consented customer review", async ({ page }) => {
+  const viewportWidth = page.viewportSize()!.width;
+  const reviewName = `Review Agent ${viewportWidth}`;
+  const reviewEmail = `review.${viewportWidth}@example.com`;
+  const reviewMessage = `The ${viewportWidth}px clinic visit was calm, clear, and restorative.`;
+
+  await page.goto("/");
+  const reviewsNavigation = page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Customer Reviews" });
+  await reviewsNavigation.click();
+  await expect(page).toHaveURL("/reviews");
+  await expect(page.getByRole("heading", { level: 1, name: "Customer Reviews" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Customer Reviews" }).first()).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("heading", { level: 2, name: "No published reviews yet" })).toBeVisible();
+
+  await page.getByRole("link", { name: "Send feedback" }).click();
+  await page.getByLabel("Name").fill(reviewName);
+  await page.getByLabel("Email").fill(reviewEmail);
+  await page.getByLabel("Message").fill(reviewMessage);
+  await page.getByRole("radio", { name: "5 - Fully recharged" }).check();
+  await page.getByRole("checkbox", { name: /public customer review/i }).check();
+  await page.getByRole("button", { name: "Send feedback" }).click();
+  await expect(page).toHaveURL("/feedback/thanks");
+
+  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Customer Reviews" }).click();
+  await expect(page.getByText(reviewName)).toHaveCount(0);
+
+  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Dashboard" }).click();
+  await expect(page.getByRole("link", { name: "Pending reviews" })).toBeVisible();
+  await page.getByRole("link", { name: "Pending reviews" }).click();
+  await expect(page).toHaveURL("/dashboard/reviews");
+  await expect(page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Dashboard", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByText(reviewEmail)).toHaveCount(0);
+
+  const pendingCard = page.locator(".moderation-card").filter({ hasText: reviewName });
+  await expect(pendingCard.getByText("Pending", { exact: true })).toBeVisible();
+  await pendingCard.getByRole("button", { name: "Approve review" }).click();
+  await expect(page).toHaveURL("/dashboard/reviews");
+  const publishedCard = page.locator(".moderation-card").filter({ hasText: reviewName });
+  await expect(publishedCard.getByText("Published", { exact: true })).toBeVisible();
+
+  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Customer Reviews" }).click();
+  const publicReviewCard = page.locator(".review-card").filter({ hasText: reviewName });
+  await expect(publicReviewCard.getByRole("heading", { level: 2, name: reviewName })).toBeVisible();
+  await expect(publicReviewCard.getByText(reviewMessage)).toBeVisible();
+  await expect(publicReviewCard.getByLabel("Rating: 5 out of 5")).toBeVisible();
+  await expect(page.getByText(reviewEmail)).toHaveCount(0);
+
+  await page.goto("/dashboard/reviews");
+  await page.locator(".moderation-card").filter({ hasText: reviewName }).getByRole("button", { name: "Remove from reviews" }).click();
+  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Customer Reviews" }).click();
+  await expect(page.getByText(reviewName)).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Footer navigation" }).getByRole("link", { name: "Customer Reviews" })).toHaveAttribute("href", "/reviews");
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(hasHorizontalOverflow).toBe(false);

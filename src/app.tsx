@@ -1,15 +1,15 @@
 import { serveStatic } from "@hono/node-server/serve-static";
-import type Database from "better-sqlite3";
 import { Hono } from "hono";
 import { jsxRenderer } from "hono/jsx-renderer";
 
-import { createAppointment, createFeedback, findAgent, findAppointment, getDashboard, listAgents, listAilments, listTherapies, openDatabase } from "./db/index.js";
+import { approveReview, createAppointment, createFeedback, findAgent, findAppointment, getDashboard, listAgents, listAilments, listPublicReviews, listReviewModerationItems, listTherapies, unpublishReview, type ClinicDatabase } from "./db/index.js";
 import { findAgentBySlug } from "./domain/care.js";
 import { validateFeedback, type FeedbackValues } from "./domain/feedback.js";
 import { AgentPage } from "./pages/AgentPage.js";
 import { AgentDetailPage, AgentsPage, AilmentsPage, AppointmentConfirmationPage, AppointmentFormPage, DashboardPage, ErrorPage, TherapiesPage, type AppointmentErrors, type AppointmentValues } from "./pages/ClinicPages.js";
 import { HomePage } from "./pages/HomePage.js";
 import { FeedbackPage, FeedbackThanksPage } from "./pages/FeedbackPage.js";
+import { ReviewModerationPage, ReviewsPage } from "./pages/ReviewPages.js";
 
 export type RequestLogger = (message: string) => void;
 
@@ -37,7 +37,7 @@ function validateAppointment(values: AppointmentValues, now: Date): AppointmentE
   return errors;
 }
 
-export function createApp(db: Database.Database, options: { logger?: RequestLogger; now?: () => Date } = {}) {
+export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger; now?: () => Date } = {}) {
   const app = new Hono();
   const logger = options.logger ?? console.log;
   const now = options.now ?? (() => new Date());
@@ -52,10 +52,22 @@ export function createApp(db: Database.Database, options: { logger?: RequestLogg
 
   app.get("/health", (context) => context.json({ status: "ok" }));
   app.get("/", (context) => context.render(<HomePage />));
-  app.get("/agents", (context) => context.render(<AgentsPage agents={listAgents(db)} />));
-  app.get("/ailments", (context) => context.render(<AilmentsPage ailments={listAilments(db)} />));
-  app.get("/therapies", (context) => context.render(<TherapiesPage therapies={listTherapies(db)} />));
-  app.get("/dashboard", (context) => context.render(<DashboardPage data={getDashboard(db)} />));
+  app.get("/agents", async (context) => context.render(<AgentsPage agents={await listAgents(db)} />));
+  app.get("/ailments", async (context) => context.render(<AilmentsPage ailments={await listAilments(db)} />));
+  app.get("/therapies", async (context) => context.render(<TherapiesPage therapies={await listTherapies(db)} />));
+  app.get("/dashboard", async (context) => context.render(<DashboardPage data={await getDashboard(db)} />));
+  app.get("/dashboard/reviews", async (context) => context.render(<ReviewModerationPage items={await listReviewModerationItems(db)} />));
+  app.post("/dashboard/reviews/:feedbackId/approve", async (context) => {
+    const id = parsePositiveId(context.req.param("feedbackId"));
+    if (!id || !await approveReview(db, id)) return context.notFound();
+    return context.redirect("/dashboard/reviews", 303);
+  });
+  app.post("/dashboard/reviews/:feedbackId/unpublish", async (context) => {
+    const id = parsePositiveId(context.req.param("feedbackId"));
+    if (!id || !await unpublishReview(db, id)) return context.notFound();
+    return context.redirect("/dashboard/reviews", 303);
+  });
+  app.get("/reviews", async (context) => context.render(<ReviewsPage reviews={await listPublicReviews(db)} />));
   app.get("/feedback", (context) => context.render(<FeedbackPage />));
   app.get("/feedback/thanks", (context) => context.render(<FeedbackThanksPage />));
   app.post("/feedback", async (context) => {
@@ -77,30 +89,30 @@ export function createApp(db: Database.Database, options: { logger?: RequestLogg
       context.status(422);
       return context.render(<FeedbackPage errors={result.errors} values={result.values} />);
     }
-    createFeedback(db, result.input);
+    await createFeedback(db, result.input);
     return context.redirect("/feedback/thanks", 303);
   });
 
-  app.get("/agents/:agentId", (context) => {
+  app.get("/agents/:agentId", async (context) => {
     const value = context.req.param("agentId");
     if (value === "patch") {
       const patch = findAgentBySlug(value);
       return patch ? context.render(<AgentPage agent={patch} />) : context.notFound();
     }
     const id = parsePositiveId(value);
-    const agent = id ? findAgent(db, id) : undefined;
+    const agent = id ? await findAgent(db, id) : undefined;
     return agent ? context.render(<AgentDetailPage agent={agent} />) : context.notFound();
   });
 
-  app.get("/agents/:agentId/appointments/new", (context) => {
+  app.get("/agents/:agentId/appointments/new", async (context) => {
     const id = parsePositiveId(context.req.param("agentId"));
-    const agent = id ? findAgent(db, id) : undefined;
+    const agent = id ? await findAgent(db, id) : undefined;
     return agent ? context.render(<AppointmentFormPage agent={agent} />) : context.notFound();
   });
 
   app.post("/agents/:agentId/appointments", async (context) => {
     const id = parsePositiveId(context.req.param("agentId"));
-    const agent = id ? findAgent(db, id) : undefined;
+    const agent = id ? await findAgent(db, id) : undefined;
     if (!id || !agent) return context.notFound();
     const body = await context.req.parseBody();
     const values: AppointmentValues = {
@@ -113,14 +125,14 @@ export function createApp(db: Database.Database, options: { logger?: RequestLogg
       context.status(422);
       return context.render(<AppointmentFormPage agent={agent} values={values} errors={errors} />);
     }
-    const appointmentId = createAppointment(db, { agentId: id, therapistName: values.therapistName, scheduledAt: `${values.date}T${values.time}` });
+    const appointmentId = await createAppointment(db, { agentId: id, therapistName: values.therapistName, scheduledAt: `${values.date}T${values.time}` });
     return context.redirect(`/agents/${id}/appointments/${appointmentId}`, 303);
   });
 
-  app.get("/agents/:agentId/appointments/:appointmentId", (context) => {
+  app.get("/agents/:agentId/appointments/:appointmentId", async (context) => {
     const agentId = parsePositiveId(context.req.param("agentId"));
     const appointmentId = parsePositiveId(context.req.param("appointmentId"));
-    const appointment = agentId && appointmentId ? findAppointment(db, agentId, appointmentId) : undefined;
+    const appointment = agentId && appointmentId ? await findAppointment(db, agentId, appointmentId) : undefined;
     return appointment ? context.render(<AppointmentConfirmationPage appointment={appointment} />) : context.notFound();
   });
 
@@ -135,7 +147,3 @@ export function createApp(db: Database.Database, options: { logger?: RequestLogg
   });
   return app;
 }
-
-const defaultDatabase = openDatabase();
-const app = createApp(defaultDatabase);
-export default app;

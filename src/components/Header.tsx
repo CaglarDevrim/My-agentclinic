@@ -1,4 +1,4 @@
-export type ActiveSection = "/" | "/agents" | "/ailments" | "/therapies" | "/dashboard";
+export type ActiveSection = "/" | "/agents" | "/ailments" | "/therapies" | "/reviews" | "/dashboard";
 
 interface HeaderProps { activePath: ActiveSection; }
 
@@ -20,6 +20,7 @@ export function Header({ activePath }: HeaderProps) {
               ["/agents", "Agents"],
               ["/ailments", "Ailments"],
               ["/therapies", "Therapies"],
+              ["/reviews", "Customer Reviews"],
               ["/dashboard", "Dashboard"],
             ].map(([href, label]) => (
               <li>

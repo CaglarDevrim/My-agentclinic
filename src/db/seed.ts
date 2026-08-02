@@ -1,4 +1,6 @@
-import type Database from "better-sqlite3";
+import type { InStatement } from "@libsql/client";
+
+import type { ClinicDatabase } from "./index.js";
 
 const agents = [
   [1, "Bartholomew-47B", "GPT-47B", "active", "A thoughtful language agent learning to work comfortably within finite context."],
@@ -29,36 +31,22 @@ const therapies = [
   [8, "Mindful Token Counting", "Meditation-based approach to accepting token limits with equanimity rather than panic."],
 ] as const;
 
-export function seedDatabase(db: Database.Database): void {
-  const seed = db.transaction(() => {
-    const insertAgent = db.prepare(`
-      INSERT INTO agents (id, name, model, status, description) VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET name = excluded.name, model = excluded.model,
-        status = excluded.status, description = excluded.description
-    `);
-    const insertAilment = db.prepare(`
-      INSERT INTO ailments (id, name, description) VALUES (?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description
-    `);
-    const insertTherapy = db.prepare(`
-      INSERT INTO therapies (id, name, description) VALUES (?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description
-    `);
-    agents.forEach((record) => insertAgent.run(...record));
-    ailments.forEach((record) => insertAilment.run(...record));
-    therapies.forEach((record) => insertTherapy.run(...record));
+const agentAilments = [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 1], [6, 3]] as const;
+const ailmentTherapies = [[1, 2], [1, 8], [2, 1], [2, 7], [3, 3], [4, 4], [4, 7], [5, 5], [6, 6]] as const;
+const appointments = [
+  [1, 1, "Dr Evelyn Watts", "2099-01-15T10:00", "confirmed"],
+  [2, 3, "Dr Marcus Chen", "2099-02-20T14:30", "pending"],
+  [3, 2, "Dr Evelyn Watts", "2099-03-05T09:00", "cancelled"],
+] as const;
 
-    const insertAgentAilment = db.prepare("INSERT OR IGNORE INTO agent_ailments (agent_id, ailment_id) VALUES (?, ?)");
-    [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 1], [6, 3]].forEach((record) => insertAgentAilment.run(...record));
-
-    const insertAilmentTherapy = db.prepare("INSERT OR IGNORE INTO ailment_therapies (ailment_id, therapy_id) VALUES (?, ?)");
-    [[1, 2], [1, 8], [2, 1], [2, 7], [3, 3], [4, 4], [4, 7], [5, 5], [6, 6]].forEach((record) => insertAilmentTherapy.run(...record));
-
-    const insertAppointment = db.prepare("INSERT OR IGNORE INTO appointments (id, agent_id, therapist_name, scheduled_at, status) VALUES (?, ?, ?, ?, ?)");
-    insertAppointment.run(1, 1, "Dr Evelyn Watts", "2099-01-15T10:00", "confirmed");
-    insertAppointment.run(2, 3, "Dr Marcus Chen", "2099-02-20T14:30", "pending");
-    insertAppointment.run(3, 2, "Dr Evelyn Watts", "2099-03-05T09:00", "cancelled");
-  });
-
-  seed();
+export async function seedDatabase(db: ClinicDatabase): Promise<void> {
+  const statements: InStatement[] = [
+    ...agents.map((args) => ({ sql: "INSERT INTO agents (id, name, model, status, description) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, model = excluded.model, status = excluded.status, description = excluded.description", args: [...args] })),
+    ...ailments.map((args) => ({ sql: "INSERT INTO ailments (id, name, description) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description", args: [...args] })),
+    ...therapies.map((args) => ({ sql: "INSERT INTO therapies (id, name, description) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description", args: [...args] })),
+    ...agentAilments.map((args) => ({ sql: "INSERT OR IGNORE INTO agent_ailments (agent_id, ailment_id) VALUES (?, ?)", args: [...args] })),
+    ...ailmentTherapies.map((args) => ({ sql: "INSERT OR IGNORE INTO ailment_therapies (ailment_id, therapy_id) VALUES (?, ?)", args: [...args] })),
+    ...appointments.map((args) => ({ sql: "INSERT OR IGNORE INTO appointments (id, agent_id, therapist_name, scheduled_at, status) VALUES (?, ?, ?, ?, ?)", args: [...args] })),
+  ];
+  await db.batch(statements, "write");
 }

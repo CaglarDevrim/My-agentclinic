@@ -11,7 +11,7 @@ AgentClinic is a server-rendered TypeScript web application. The stack favors re
 | Web framework | Hono | TypeScript-first, lightweight, and well suited to server-rendered applications |
 | Rendering | Hono JSX | Produces accessible HTML on the server with reusable typed components |
 | Styling | Plain CSS with custom properties | Keeps the browser experience fast and the visual system easy to maintain |
-| Data store | SQLite with `better-sqlite3` | Provides durable local data with minimal infrastructure |
+| Data store | libSQL with `@libsql/client`; local file for development and Turso for deployment | Preserves SQLite-compatible SQL and zero-service local development while providing durable remote storage for Vercel |
 | Database changes | Versioned SQL migrations | Keeps schema evolution explicit and reviewable |
 | Testing | Vitest and Playwright | Vitest covers routes and domain behavior; Playwright verifies compiled browser behavior at required viewports |
 | Development | `tsx` | Runs TypeScript directly during development |
@@ -41,7 +41,7 @@ AgentClinic is a server-rendered TypeScript web application. The stack favors re
 
 - Read deployment-specific values from validated environment configuration and provide safe local defaults where appropriate.
 - Apply versioned migrations and deterministic seeds before the production server accepts requests.
-- Keep automated tests isolated from development and production SQLite files.
+- Keep automated tests isolated from development and production libSQL databases by using in-memory or temporary local files.
 - Log request method, path, status, and duration without recording secrets or sensitive form values.
 - Return branded, non-sensitive not-found and server-error responses.
 - Validate and normalize every request-derived value before persistence, and use parameterized SQL for database writes and lookups.
@@ -63,5 +63,5 @@ AgentClinic is a server-rendered TypeScript web application. The stack favors re
 - Support viewport widths from `375px` mobile screens through `1280px` desktop screens.
 - Include the viewport meta tag on every rendered page.
 - Keep primary content and controls usable without horizontal page scrolling.
-- Use a single Node.js service and a single SQLite database.
+- Use a single Node.js service and one SQLite-compatible libSQL database per environment.
 - Defer authentication, notifications, and distributed infrastructure until the core clinic workflow is proven.
