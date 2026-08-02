@@ -32,7 +32,7 @@ At this point, visitors can submit dependable feedback without requiring client-
 - Publish approved feedback only and keep private submission details private
 - Add empty, success, responsive, accessibility, and moderation-state coverage
 
-## Phase 3 — About Us, Address, and Map
+## Phase 3 — About Us, Address, and Map ✅
 
 - Add an About page describing AgentClinic's mission and audience
 - Show a visible, accessible clinic address

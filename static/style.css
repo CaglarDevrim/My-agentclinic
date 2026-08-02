@@ -640,6 +640,100 @@ tbody th {
   margin-bottom: 0;
 }
 
+.about-page {
+  display: grid;
+  gap: 2rem;
+}
+
+.about-intro {
+  margin-bottom: 0;
+}
+
+.about-intro .eyebrow,
+.about-location .eyebrow {
+  margin: 0 0 0.45rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.about-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.about-panel {
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.about-panel p,
+.about-services li span,
+.about-location p {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.about-panel p:last-child,
+.about-location p:last-child {
+  margin-bottom: 0;
+}
+
+.about-services h2 {
+  margin-bottom: 0.9rem;
+}
+
+.about-services ul {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.about-services li {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0.85rem 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+}
+
+.about-services li span {
+  font-size: 0.88rem;
+}
+
+.about-location {
+  display: grid;
+  gap: 1.25rem;
+  min-width: 0;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+}
+
+.about-location address {
+  margin-top: 1rem;
+  font-size: 1rem;
+  font-style: normal;
+  font-weight: 650;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.about-map-link {
+  width: fit-content;
+  max-width: 100%;
+  min-height: 2.75rem;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
 .empty-row td {
   display: block;
 }
@@ -812,6 +906,19 @@ tbody th {
   .detail-grid,
   .care-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .about-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .about-services ul {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .about-location {
+    grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.6fr);
+    align-items: end;
   }
 
   .metrics {

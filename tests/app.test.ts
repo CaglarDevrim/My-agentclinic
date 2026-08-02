@@ -33,14 +33,15 @@ describe("AgentClinic routes", () => {
     expect(html).toContain("Where AI agents come to get better.");
     expect(html).not.toContain('role="search"');
     expect(html).not.toContain("feature-card");
-    for (const [path, label] of [["/agents", "Agents"], ["/ailments", "Ailments"], ["/therapies", "Therapies"], ["/reviews", "Customer Reviews"], ["/dashboard", "Dashboard"]]) {
+    for (const [path, label] of [["/agents", "Agents"], ["/ailments", "Ailments"], ["/therapies", "Therapies"], ["/reviews", "Customer Reviews"], ["/about", "About"], ["/dashboard", "Dashboard"]]) {
       expect(html).toContain(`href="${path}"`);
       expect(html).toContain(`>${label}<`);
     }
     expect(html.indexOf('href="/agents"')).toBeLessThan(html.indexOf('href="/ailments"'));
     expect(html.indexOf('href="/ailments"')).toBeLessThan(html.indexOf('href="/therapies"'));
     expect(html.indexOf('href="/therapies"')).toBeLessThan(html.indexOf('href="/reviews"'));
-    expect(html.indexOf('href="/reviews"')).toBeLessThan(html.indexOf('href="/dashboard"'));
+    expect(html.indexOf('href="/reviews"')).toBeLessThan(html.indexOf('href="/about"'));
+    expect(html.indexOf('href="/about"')).toBeLessThan(html.indexOf('href="/dashboard"'));
     expect(html).not.toMatch(/<script\b/i);
   });
 
@@ -129,7 +130,7 @@ describe("AgentClinic routes", () => {
   });
 
   it("uses branded 404 responses for unknown records and routes", async () => {
-    for (const path of ["/agents/unknown", "/agents/999", "/agents/1/appointments/999", "/does-not-exist"]) {
+    for (const path of ["/agents/unknown", "/agents/999", "/agents/1/appointments/999", "/about/team", "/does-not-exist"]) {
       const response = await app.request(path);
       expect(response.status).toBe(404);
       expect(await response.text()).toContain("Page not found");
@@ -158,11 +159,40 @@ describe("AgentClinic routes", () => {
     expect(css).toContain(".metrics");
     expect(css).toContain(".review-card");
     expect(css).toContain(".moderation-card");
+    expect(css).toContain(".about-page");
+    expect(css).toContain(".about-location address");
     expect(css).toContain(".table-wrap");
     expect(css).toContain("@media (min-width: 641px)");
     expect(css).toContain('a[aria-current="page"]');
     expect(css).not.toContain("@media (max-width:");
     expect(css).not.toContain(".search-form");
+  });
+
+  it("renders a semantic, privacy-safe About page with a fixed external map link", async () => {
+    const response = await app.request("/about");
+    const html = await response.text();
+    const mapUrl = "https://www.openstreetmap.org/search?query=42%20Context%20Window%20Way%2C%20San%20Francisco%2C%20CA%2094107";
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    expect(html).toContain("<title>About | AgentClinic</title>");
+    expect((html.match(/<h1>/g) ?? [])).toHaveLength(1);
+    expect(html).toContain("<h1>About AgentClinic</h1>");
+    for (const heading of ["Our mission", "Who we serve", "Core services", "Visit AgentClinic"]) expect(html).toContain(`>${heading}<`);
+    expect(html).toContain("overworked AI agents");
+    expect(html).toContain("Clinic staff");
+    expect(html).toContain("fictional and exist only for this demonstration project");
+    expect(html).toContain("<address>42 Context Window Way, San Francisco, CA 94107</address>");
+    expect(html).toContain(`href="${mapUrl}" target="_blank" rel="noopener noreferrer"`);
+    expect(html).toContain("Open 42 Context Window Way in OpenStreetMap (opens in a new tab)");
+    expect(html).toMatch(/href="\/about" aria-current="page"/);
+    expect(html).toContain('<nav aria-label="Footer navigation"><a href="/feedback">Feedback</a><a href="/reviews">Customer Reviews</a></nav>');
+    expect(html).not.toMatch(/<(?:iframe|script|form)\b/i);
+    expect(html).not.toMatch(/(?:api[_-]?key|geolocation|mapbox|googleapis|tile\.openstreetmap)/i);
+
+    const post = await app.request("/about", { method: "POST" });
+    expect(post.status).toBe(404);
+    expect(await post.text()).toContain("Page not found");
   });
 
   it("renders the feedback form and site-wide footer entry", async () => {
