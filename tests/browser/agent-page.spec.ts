@@ -2,11 +2,20 @@ import { expect, test } from "@playwright/test";
 
 const staffEmail = "browser.staff@example.com";
 const staffPassword = "Browser staff password 2026!";
+const therapistEmail = "browser.therapist@example.com";
+const therapistPassword = "Browser therapist password 2026!";
 
 async function signInAsStaff(page: import("@playwright/test").Page) {
   await expect(page).toHaveURL(/\/login(?:\?|$)/);
   await page.getByLabel("Email address").fill(staffEmail);
   await page.getByLabel("Password").fill(staffPassword);
+  await page.getByRole("button", { name: "Sign in" }).click();
+}
+
+async function signInAsTherapist(page: import("@playwright/test").Page) {
+  await expect(page).toHaveURL(/\/login(?:\?|$)/);
+  await page.getByLabel("Email address").fill(therapistEmail);
+  await page.getByLabel("Password").fill(therapistPassword);
   await page.getByRole("button", { name: "Sign in" }).click();
 }
 
@@ -61,8 +70,8 @@ test("exposes the complete clinic navigation and populated sections", async ({ p
 
 test("completes agent care and appointment booking", async ({ page }) => {
   const viewportWidth = page.viewportSize()!.width;
-  const therapistName = `Dr Browser Test ${viewportWidth}`;
-  const appointmentDate = viewportWidth === 375 ? "2099-12-28" : "2099-12-29";
+  const therapistName = viewportWidth === 375 ? "Dr Evelyn Watts" : "Dr Marcus Chen";
+  const appointmentWhen = viewportWidth === 375 ? "2099-04-10 at 10:00" : "2099-04-11 at 14:30";
   await page.goto("/agents/1");
   await expect(page.getByRole("heading", { level: 1, name: "Bartholomew-47B" })).toBeVisible();
   await expect(page.getByText("Context-Window Claustrophobia", { exact: true })).toBeVisible();
@@ -71,11 +80,12 @@ test("completes agent care and appointment booking", async ({ page }) => {
   await page.getByRole("link", { name: "Book an appointment" }).click();
   await page.getByRole("button", { name: "Request appointment" }).click();
   await expect(page.getByRole("alert")).toBeVisible();
-  await expect(page.locator("#therapistName-error")).toBeVisible();
+  await expect(page.locator("#slotId-error")).toBeVisible();
 
-  await page.getByLabel("Therapist name").fill(therapistName);
-  await page.getByLabel("Date").fill(appointmentDate);
-  await page.getByLabel("Time").fill("11:30");
+  const slotSelect = page.getByLabel("Available appointment");
+  const selectedValue = await slotSelect.locator("option").filter({ hasText: therapistName }).getAttribute("value");
+  if (!selectedValue) throw new Error("Expected a seeded therapist slot.");
+  await slotSelect.selectOption(selectedValue);
   await page.getByRole("button", { name: "Request appointment" }).click();
   await expect(page).toHaveURL(/\/agents\/1\/appointments\/\d+$/);
   await expect(page.getByRole("heading", { level: 1, name: "Appointment requested" })).toBeVisible();
@@ -84,37 +94,73 @@ test("completes agent care and appointment booking", async ({ page }) => {
   await page.getByRole("link", { name: "View dashboard" }).click();
   await signInAsStaff(page);
   await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
-  const appointmentRow = page.locator("tr").filter({ hasText: therapistName });
+  const appointmentRow = page.locator("tr").filter({ hasText: therapistName }).filter({ hasText: appointmentWhen });
   await expect(appointmentRow).toBeVisible();
-  const openMetric = page.locator(".metrics div").filter({ hasText: "Open appointments" }).locator("dd");
-  const openBefore = Number(await openMetric.textContent());
   await appointmentRow.getByRole("button", { name: new RegExp(`Confirm appointment for Bartholomew-47B with ${therapistName}`) }).click();
   await expect(page).toHaveURL("/dashboard");
-  await expect(page.locator("tr").filter({ hasText: therapistName }).getByText("confirmed", { exact: true })).toBeVisible();
-  await expect(openMetric).toHaveText(String(openBefore));
+  await expect(page.locator("tr").filter({ hasText: therapistName }).filter({ hasText: appointmentWhen }).getByText("confirmed", { exact: true })).toBeVisible();
 
-  await page.locator("tr").filter({ hasText: therapistName }).getByRole("button", { name: new RegExp(`Cancel appointment for Bartholomew-47B with ${therapistName}`) }).click();
+  await page.locator("tr").filter({ hasText: therapistName }).filter({ hasText: appointmentWhen }).getByRole("button", { name: new RegExp(`Cancel appointment for Bartholomew-47B with ${therapistName}`) }).click();
   await expect(page).toHaveURL("/dashboard");
-  await expect(page.locator("tr").filter({ hasText: therapistName })).toHaveCount(0);
-  await expect.poll(async () => Number(await openMetric.textContent())).toBeLessThan(openBefore);
+  await expect(page.locator("tr").filter({ hasText: therapistName }).filter({ hasText: appointmentWhen })).toHaveCount(0);
 
   await page.goto("/agents/1/appointments/new");
-  await page.getByLabel("Therapist name").fill(therapistName);
-  await page.getByLabel("Date").fill(appointmentDate);
-  await page.getByLabel("Time").fill("11:30");
+  await page.getByLabel("Available appointment").selectOption(selectedValue);
   await page.getByRole("button", { name: "Request appointment" }).click();
   await expect(page).toHaveURL(/\/agents\/1\/appointments\/\d+$/);
 
-  await page.goto("/agents/2/appointments/new");
-  await page.getByLabel("Therapist name").fill(`  ${therapistName.toUpperCase()}  `);
-  await page.getByLabel("Date").fill(appointmentDate);
-  await page.getByLabel("Time").fill("11:30");
-  await page.getByRole("button", { name: "Request appointment" }).click();
-  await expect(page).toHaveURL("/agents/2/appointments");
-  await expect(page.getByRole("alert")).toBeFocused();
-  await expect(page.getByText("This therapist already has an appointment at that time.", { exact: true }).first()).toBeVisible();
-  await expect(page.getByLabel("Therapist name")).toHaveValue(therapistName.toUpperCase());
+  const stale = await page.request.post("/agents/2/appointments", { form: { slotId: selectedValue } });
+  expect(stale.status()).toBe(422);
+  expect(await stale.text()).toContain("That appointment time is no longer available.");
 
+  const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(hasHorizontalOverflow).toBe(false);
+});
+
+test("lets a therapist open a slot and manage only the resulting appointment", async ({ page }) => {
+  const viewportWidth = page.viewportSize()!.width;
+  const scheduledAt = viewportWidth === 375 ? "2099-10-20T09:15" : "2099-10-21T13:45";
+  const formatted = viewportWidth === 375 ? "2099-10-20 at 09:15" : "2099-10-21 at 13:45";
+
+  await page.goto("/dashboard");
+  await signInAsTherapist(page);
+  await expect(page).toHaveURL("/dashboard/schedule");
+  await expect(page.getByRole("heading", { level: 1, name: "My schedule" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "My schedule" })).toHaveAttribute("aria-current", "page");
+  await page.getByLabel("Future appointment time").fill(scheduledAt);
+  await page.getByRole("button", { name: "Open appointment time" }).click();
+  await expect(page).toHaveURL("/dashboard/schedule");
+  const slotRow = page.locator("tr").filter({ hasText: formatted });
+  await expect(slotRow.getByText("Available", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.goto("/agents/2/appointments/new");
+  const option = page.getByLabel("Available appointment").locator("option").filter({ hasText: `Dr Browser Therapist — ${formatted}` });
+  const slotId = await option.getAttribute("value");
+  if (!slotId) throw new Error("Expected the therapist-created slot.");
+  await page.getByLabel("Available appointment").selectOption(slotId);
+  await page.getByRole("button", { name: "Request appointment" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Appointment requested" })).toBeVisible();
+
+  await page.getByRole("link", { name: "View dashboard" }).click();
+  await signInAsTherapist(page);
+  await page.getByRole("link", { name: "My appointments" }).click();
+  const appointmentRow = page.locator("tr").filter({ hasText: "Penelope-mini" }).filter({ hasText: formatted });
+  await expect(appointmentRow).toBeVisible();
+  await appointmentRow.getByRole("button", { name: "Confirm appointment for Penelope-mini" }).click();
+  await expect(page).toHaveURL("/dashboard/appointments");
+  await expect(page.locator("tr").filter({ hasText: "Penelope-mini" }).filter({ hasText: formatted }).getByText("confirmed", { exact: true })).toBeVisible();
+
+  await page.getByRole("link", { name: "My schedule" }).last().click();
+  await expect(page.locator("tr").filter({ hasText: formatted }).getByText("Occupied", { exact: true })).toBeVisible();
+  await expect(page.locator("tr").filter({ hasText: formatted }).getByRole("button", { name: /Remove appointment time/ })).toHaveCount(0);
+  await page.getByRole("link", { name: "My appointments" }).click();
+  await page.locator("tr").filter({ hasText: "Penelope-mini" }).filter({ hasText: formatted }).getByRole("button", { name: "Cancel appointment for Penelope-mini" }).click();
+  await page.getByRole("link", { name: "My schedule" }).last().click();
+  await expect(page.locator("tr").filter({ hasText: formatted }).getByText("Available", { exact: true })).toBeVisible();
+
+  await page.goto("/dashboard/reviews");
+  await expect(page.getByRole("heading", { level: 1, name: "Staff access required" })).toBeVisible();
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(hasHorizontalOverflow).toBe(false);
 });

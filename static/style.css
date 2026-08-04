@@ -45,6 +45,7 @@ a:hover {
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
+select:focus-visible,
 textarea:focus-visible {
   outline: 3px solid var(--link-hover);
   outline-offset: 3px;
@@ -409,6 +410,7 @@ tbody th {
 }
 
 .appointment-form > input,
+.appointment-form > select,
 .appointment-form > textarea {
   width: 100%;
   min-height: 2.65rem;
@@ -428,6 +430,7 @@ tbody th {
 }
 
 .appointment-form > input[aria-invalid="true"],
+.appointment-form > select[aria-invalid="true"],
 .appointment-form > textarea[aria-invalid="true"] {
   border-color: var(--danger);
 }

@@ -6,11 +6,11 @@ import { clearLoginCsrfCookie, clearSessionCookie, readLoginCsrfCookie, readSess
 import { authenticateStaffCredentials, authenticateStaffSession, createStaffSession, endStaffSession } from "./auth/service.js";
 import { constantTimeStringEqual, createLoginCsrfToken, hasSameOrigin, isFreshLoginCsrfToken, isValidStaffEmail, isValidStaffPassword, normalizeStaffEmail, safeDashboardReturnTo } from "./auth/security.js";
 import type { AuthenticatedStaff } from "./auth/types.js";
-import { approveReview, cancelAppointment, confirmAppointment, createAppointment, createFeedback, findAgent, findAppointment, getDashboard, listAgents, listAilments, listPublicReviews, listReviewModerationItems, listTherapies, unpublishReview, type ClinicDatabase } from "./db/index.js";
+import { approveReview, cancelAppointment, confirmAppointment, createAppointmentFromSlot, createFeedback, createTherapistSlot, findAgent, findAppointment, getDashboard, listAgents, listAilments, listAvailableSlots, listPublicReviews, listReviewModerationItems, listTherapistAppointments, listTherapists, listTherapistSlots, listTherapies, removeTherapistSlot, unpublishReview, type ClinicDatabase } from "./db/index.js";
 import { findAgentBySlug } from "./domain/care.js";
 import { validateFeedback, type FeedbackValues } from "./domain/feedback.js";
 import { AgentPage } from "./pages/AgentPage.js";
-import { AgentDetailPage, AgentsPage, AilmentsPage, AppointmentConfirmationPage, AppointmentFormPage, DashboardPage, ErrorPage, TherapiesPage, type AppointmentErrors, type AppointmentValues } from "./pages/ClinicPages.js";
+import { AgentDetailPage, AgentsPage, AilmentsPage, AppointmentConfirmationPage, AppointmentFormPage, DashboardPage, ErrorPage, TherapistAppointmentsPage, TherapistDirectoryPage, TherapistSchedulePage, TherapiesPage, type AppointmentErrors, type AppointmentValues } from "./pages/ClinicPages.js";
 import { HomePage } from "./pages/HomePage.js";
 import { FeedbackPage, FeedbackThanksPage } from "./pages/FeedbackPage.js";
 import { ReviewModerationPage, ReviewsPage } from "./pages/ReviewPages.js";
@@ -33,25 +33,30 @@ function singleFormValue(formData: FormData, name: string): string | undefined {
 }
 
 function staffHeader(auth: AuthenticatedStaff) {
-  return { displayName: auth.displayName, csrfToken: auth.csrfToken };
+  return { displayName: auth.displayName, csrfToken: auth.csrfToken, role: auth.role };
 }
 
-function validateAppointment(values: AppointmentValues, now: Date): AppointmentErrors {
+function validateAppointment(values: AppointmentValues): AppointmentErrors {
   const errors: AppointmentErrors = {};
-  if (!values.therapistName.trim()) errors.therapistName = "Enter a therapist name.";
-  else if (values.therapistName.trim().length > 100) errors.therapistName = "Therapist name must be 100 characters or fewer.";
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(values.date)) errors.date = "Enter a valid appointment date.";
-  if (!/^\d{2}:\d{2}$/.test(values.time)) errors.time = "Enter a valid appointment time.";
-  if (!errors.date && !errors.time) {
-    const scheduled = new Date(`${values.date}T${values.time}:00`);
-    const [year, month, day] = values.date.split("-").map(Number);
-    const [hour, minute] = values.time.split(":").map(Number);
-    const isReal = !Number.isNaN(scheduled.getTime()) && scheduled.getFullYear() === year && scheduled.getMonth() === month - 1 && scheduled.getDate() === day && scheduled.getHours() === hour && scheduled.getMinutes() === minute;
-    if (!isReal) errors.date = "Enter a real calendar date and time.";
-    else if (scheduled <= now) errors.date = "Choose an appointment in the future.";
-  }
+  if (!parsePositiveId(values.slotId)) errors.slotId = "Choose an available appointment time.";
   return errors;
+}
+
+function validateScheduledAt(value: string, now: Date): string | undefined {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return "Enter a valid appointment date and time.";
+  const scheduled = new Date(`${value}:00`);
+  const [date, time] = value.split("T");
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  const isReal = !Number.isNaN(scheduled.getTime()) && scheduled.getFullYear() === year && scheduled.getMonth() === month - 1 && scheduled.getDate() === day && scheduled.getHours() === hour && scheduled.getMinutes() === minute;
+  if (!isReal) return "Enter a real calendar date and time.";
+  if (scheduled <= now) return "Choose an appointment time in the future.";
+  return undefined;
+}
+
+function permittedReturnTo(auth: AuthenticatedStaff, returnTo: string): string {
+  if (auth.role === "staff") return returnTo === "/dashboard/schedule" || returnTo === "/dashboard/appointments" ? "/dashboard" : returnTo;
+  return returnTo === "/dashboard/appointments" || returnTo === "/dashboard/schedule" ? returnTo : "/dashboard/schedule";
 }
 
 export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger; now?: () => Date } = {}) {
@@ -109,7 +114,7 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
     const returnTo = safeDashboardReturnTo(context.req.query("returnTo"));
     const sessionToken = readSessionCookie(context);
     const auth = await authenticateStaffSession(db, sessionToken, now());
-    if (auth) return context.redirect(returnTo, 303);
+    if (auth) return context.redirect(permittedReturnTo(auth, returnTo), 303);
     if (sessionToken) clearSessionCookie(context);
     const csrfToken = createLoginCsrfToken(now());
     setLoginCsrfCookie(context, csrfToken);
@@ -166,7 +171,7 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
     const auth = await createStaffSession(db, result.staff, requestTime, previousSessionToken);
     setSessionCookie(context, auth.sessionToken);
     clearLoginCsrfCookie(context);
-    return context.redirect(returnTo, 303);
+    return context.redirect(permittedReturnTo(auth, returnTo), 303);
   });
 
   app.post("/logout", async (context) => {
@@ -194,40 +199,114 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
 
   app.get("/dashboard", async (context) => {
     const auth = context.get("staffAuth");
+    if (auth.role === "therapist") return context.redirect("/dashboard/schedule", 303);
     return context.render(<DashboardPage data={await getDashboard(db)} staff={staffHeader(auth)} />);
   });
+  app.get("/dashboard/therapists", async (context) => {
+    const auth = context.get("staffAuth");
+    if (auth.role !== "staff") {
+      context.status(403);
+      return context.render(<ErrorPage status={403} title="Staff access required" message="This clinic-wide therapist directory is available to staff only." staff={staffHeader(auth)} />);
+    }
+    return context.render(<TherapistDirectoryPage therapists={await listTherapists(db, now())} staff={staffHeader(auth)} />);
+  });
+  app.get("/dashboard/schedule", async (context) => {
+    const auth = context.get("staffAuth");
+    if (auth.role !== "therapist" || !auth.therapistId) {
+      context.status(403);
+      return context.render(<ErrorPage status={403} title="Therapist access required" message="This schedule belongs to a linked therapist account." staff={staffHeader(auth)} />);
+    }
+    return context.render(<TherapistSchedulePage slots={await listTherapistSlots(db, auth.therapistId, now())} staff={staffHeader(auth)} />);
+  });
+  app.post("/dashboard/schedule/slots", async (context) => {
+    const auth = context.get("staffAuth");
+    if (auth.role !== "therapist" || !auth.therapistId) {
+      context.status(403);
+      return context.render(<ErrorPage status={403} title="Therapist access required" message="Only linked therapists can open appointment times." staff={staffHeader(auth)} />);
+    }
+    const form = await context.req.raw.formData();
+    const scheduledAt = singleFormValue(form, "scheduledAt") ?? "";
+    const error = validateScheduledAt(scheduledAt, now());
+    if (error) {
+      context.status(422);
+      return context.render(<TherapistSchedulePage slots={await listTherapistSlots(db, auth.therapistId, now())} staff={staffHeader(auth)} values={{ scheduledAt }} errors={{ scheduledAt: error }} />);
+    }
+    const result = await createTherapistSlot(db, auth.therapistId, scheduledAt);
+    if (result === "duplicate") {
+      context.status(422);
+      return context.render(<TherapistSchedulePage slots={await listTherapistSlots(db, auth.therapistId, now())} staff={staffHeader(auth)} values={{ scheduledAt }} errors={{ scheduledAt: "You already opened this appointment time." }} />);
+    }
+    return context.redirect("/dashboard/schedule", 303);
+  });
+  app.post("/dashboard/schedule/slots/:slotId/remove", async (context) => {
+    const auth = context.get("staffAuth");
+    if (auth.role !== "therapist" || !auth.therapistId) return context.notFound();
+    const slotId = parsePositiveId(context.req.param("slotId"));
+    if (!slotId) return context.notFound();
+    const result = await removeTherapistSlot(db, auth.therapistId, slotId, now());
+    if (result === "not_found") return context.notFound();
+    if (result === "occupied") {
+      context.status(409);
+      return context.render(<ErrorPage status={409} title="Appointment time occupied" message="A booked appointment time cannot be removed. Cancel the appointment first." staff={staffHeader(auth)} />);
+    }
+    return context.redirect("/dashboard/schedule", 303);
+  });
+  app.get("/dashboard/appointments", async (context) => {
+    const auth = context.get("staffAuth");
+    if (auth.role !== "therapist" || !auth.therapistId) {
+      context.status(403);
+      return context.render(<ErrorPage status={403} title="Therapist access required" message="This appointment list belongs to a linked therapist account." staff={staffHeader(auth)} />);
+    }
+    return context.render(<TherapistAppointmentsPage appointments={await listTherapistAppointments(db, auth.therapistId)} staff={staffHeader(auth)} />);
+  });
   app.post("/dashboard/appointments/:appointmentId/confirm", async (context) => {
+    const auth = context.get("staffAuth");
     const id = parsePositiveId(context.req.param("appointmentId"));
     if (!id) return context.notFound();
-    const result = await confirmAppointment(db, id);
+    const result = await confirmAppointment(db, id, auth.role === "therapist" ? auth.therapistId : undefined);
     if (result === "not_found") return context.notFound();
     if (result === "invalid_transition") {
       context.status(409);
       return context.render(<ErrorPage status={409} title="Appointment conflict" message="A cancelled appointment cannot be confirmed." staff={staffHeader(context.get("staffAuth"))} />);
     }
-    return context.redirect("/dashboard", 303);
+    return context.redirect(auth.role === "therapist" ? "/dashboard/appointments" : "/dashboard", 303);
   });
   app.post("/dashboard/appointments/:appointmentId/cancel", async (context) => {
+    const auth = context.get("staffAuth");
     const id = parsePositiveId(context.req.param("appointmentId"));
     if (!id) return context.notFound();
-    const result = await cancelAppointment(db, id);
+    const result = await cancelAppointment(db, id, auth.role === "therapist" ? auth.therapistId : undefined);
     if (result === "not_found") return context.notFound();
     if (result === "invalid_transition") {
       context.status(409);
       return context.render(<ErrorPage status={409} title="Appointment conflict" message="This appointment cannot be cancelled from its current state." staff={staffHeader(context.get("staffAuth"))} />);
     }
-    return context.redirect("/dashboard", 303);
+    return context.redirect(auth.role === "therapist" ? "/dashboard/appointments" : "/dashboard", 303);
   });
   app.get("/dashboard/reviews", async (context) => {
     const auth = context.get("staffAuth");
+    if (auth.role !== "staff") {
+      context.status(403);
+      return context.render(<ErrorPage status={403} title="Staff access required" message="Review moderation is available to clinic staff only." staff={staffHeader(auth)} />);
+    }
     return context.render(<ReviewModerationPage items={await listReviewModerationItems(db)} staff={staffHeader(auth)} />);
   });
   app.post("/dashboard/reviews/:feedbackId/approve", async (context) => {
+    const auth = context.get("staffAuth");
+    if (auth.role !== "staff") {
+      context.status(403);
+      return context.render(<ErrorPage status={403} title="Staff access required" message="Review moderation is available to clinic staff only." staff={staffHeader(auth)} />);
+    }
     const id = parsePositiveId(context.req.param("feedbackId"));
     if (!id || !await approveReview(db, id)) return context.notFound();
     return context.redirect("/dashboard/reviews", 303);
   });
   app.post("/dashboard/reviews/:feedbackId/unpublish", async (context) => {
+    const auth = context.get("staffAuth");
+    if (auth.role !== "staff") {
+      context.status(403);
+      return context.render(<ErrorPage status={403} title="Staff access required" message="Review moderation is available to clinic staff only." staff={staffHeader(auth)} />);
+    }
     const id = parsePositiveId(context.req.param("feedbackId"));
     if (!id || !await unpublishReview(db, id)) return context.notFound();
     return context.redirect("/dashboard/reviews", 303);
@@ -273,29 +352,28 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
   app.get("/agents/:agentId/appointments/new", async (context) => {
     const id = parsePositiveId(context.req.param("agentId"));
     const agent = id ? await findAgent(db, id) : undefined;
-    return agent ? context.render(<AppointmentFormPage agent={agent} />) : context.notFound();
+    return agent ? context.render(<AppointmentFormPage agent={agent} slots={await listAvailableSlots(db, now())} />) : context.notFound();
   });
 
   app.post("/agents/:agentId/appointments", async (context) => {
     const id = parsePositiveId(context.req.param("agentId"));
     const agent = id ? await findAgent(db, id) : undefined;
     if (!id || !agent) return context.notFound();
-    const body = await context.req.parseBody();
+    const form = await context.req.raw.formData();
     const values: AppointmentValues = {
-      therapistName: typeof body.therapistName === "string" ? body.therapistName.trim() : "",
-      date: typeof body.date === "string" ? body.date : "",
-      time: typeof body.time === "string" ? body.time : "",
+      slotId: singleFormValue(form, "slotId") ?? "",
     };
-    const errors = validateAppointment(values, now());
+    const errors = validateAppointment(values);
     if (Object.keys(errors).length) {
       context.status(422);
-      return context.render(<AppointmentFormPage agent={agent} values={values} errors={errors} />);
+      return context.render(<AppointmentFormPage agent={agent} slots={await listAvailableSlots(db, now())} values={values} errors={errors} />);
     }
-    const result = await createAppointment(db, { agentId: id, therapistName: values.therapistName, scheduledAt: `${values.date}T${values.time}` });
+    const slotId = parsePositiveId(values.slotId)!;
+    const result = await createAppointmentFromSlot(db, { agentId: id, slotId, now: now() });
     if (result.status === "conflict") {
-      errors.therapistName = "This therapist already has an appointment at that time.";
+      errors.slotId = "That appointment time is no longer available. Choose another time.";
       context.status(422);
-      return context.render(<AppointmentFormPage agent={agent} values={values} errors={errors} />);
+      return context.render(<AppointmentFormPage agent={agent} slots={await listAvailableSlots(db, now())} values={{ slotId: "" }} errors={errors} />);
     }
     return context.redirect(`/agents/${id}/appointments/${result.appointmentId}`, 303);
   });

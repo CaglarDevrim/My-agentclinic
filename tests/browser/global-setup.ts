@@ -12,6 +12,7 @@ export default async function startProductionServer() {
     ...process.env,
     AGENTCLINIC_DB: databasePath,
     AGENTCLINIC_STAFF_PASSWORD: "Browser staff password 2026!",
+    AGENTCLINIC_THERAPIST_PASSWORD: "Browser therapist password 2026!",
     PORT: String(port),
   };
   const provisioning = spawnSync(process.execPath, ["dist/staff-create.js", "--email", "browser.staff@example.com", "--name", "Browser Staff"], {
@@ -22,6 +23,15 @@ export default async function startProductionServer() {
   if (provisioning.status !== 0) {
     rmSync(temporaryDirectory, { force: true, recursive: true });
     throw new Error(`Browser staff provisioning failed.\n${provisioning.stderr}`);
+  }
+  const therapistProvisioning = spawnSync(process.execPath, ["dist/therapist-create.js", "--email", "browser.therapist@example.com", "--name", "Dr Browser Therapist"], {
+    env: environment,
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  if (therapistProvisioning.status !== 0) {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+    throw new Error(`Browser therapist provisioning failed.\n${therapistProvisioning.stderr}`);
   }
   const server = spawn(process.execPath, ["dist/index.js"], {
     env: environment,

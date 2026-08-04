@@ -25,7 +25,7 @@ describe("clinic database", () => {
     const db = await openDatabase();
     await migrateDatabase(db);
     await seedDatabase(db);
-    expect(Number((await db.execute("SELECT COUNT(*) AS count FROM schema_migrations")).rows[0].count)).toBe(10);
+    expect(Number((await db.execute("SELECT COUNT(*) AS count FROM schema_migrations")).rows[0].count)).toBe(12);
     expect(await listAgents(db)).toHaveLength(6);
     expect(await listAilments(db)).toHaveLength(6);
     expect(await listTherapies(db)).toHaveLength(8);
