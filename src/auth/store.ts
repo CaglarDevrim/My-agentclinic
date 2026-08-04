@@ -1,26 +1,48 @@
 import type { ClinicDatabase } from "../db/index.js";
 import { LOGIN_FAILURE_LIMIT, LOGIN_FAILURE_WINDOW_MS, normalizeStaffEmail } from "./security.js";
+import type { StaffRole } from "../db/types.js";
 import type { StaffAccountSecret, StaffIdentity } from "./types.js";
 
 function firstRow<T>(rows: readonly unknown[]): T | undefined {
   return rows[0] as T | undefined;
 }
 
-export async function createStaffUser(db: ClinicDatabase, input: { email: string; displayName: string; passwordHash: string }): Promise<number> {
+export async function createStaffUser(db: ClinicDatabase, input: { email: string; displayName: string; passwordHash: string; role?: StaffRole }): Promise<number> {
   const result = await db.execute({
-    sql: "INSERT INTO staff_users (email, display_name, password_hash) VALUES (?, ?, ?)",
-    args: [normalizeStaffEmail(input.email), input.displayName.trim(), input.passwordHash],
+    sql: "INSERT INTO staff_users (email, display_name, password_hash, role) VALUES (?, ?, ?, ?)",
+    args: [normalizeStaffEmail(input.email), input.displayName.trim(), input.passwordHash, input.role ?? "staff"],
   });
   if (result.lastInsertRowid === undefined) throw new Error("Staff user insert did not return an ID.");
   return Number(result.lastInsertRowid);
 }
 
 export async function findStaffAccountByEmail(db: ClinicDatabase, email: string): Promise<StaffAccountSecret | undefined> {
-  const row = firstRow<{ id: number; email: string; display_name: string; password_hash: string; is_active: number }>((await db.execute({
-    sql: "SELECT id, email, display_name, password_hash, is_active FROM staff_users WHERE email = ? COLLATE NOCASE",
+  const row = firstRow<{ id: number; email: string; display_name: string; password_hash: string; is_active: number; role: StaffRole; therapist_id: number | null; therapist_active: number | null }>((await db.execute({
+    sql: `SELECT u.id, u.email, u.display_name, u.password_hash, u.is_active, u.role,
+                 t.id AS therapist_id, t.is_active AS therapist_active
+          FROM staff_users u LEFT JOIN therapists t ON t.staff_user_id = u.id
+          WHERE u.email = ? COLLATE NOCASE`,
     args: [normalizeStaffEmail(email)],
   })).rows);
-  return row ? { id: row.id, email: row.email, displayName: row.display_name, passwordHash: row.password_hash, isActive: row.is_active === 1 } : undefined;
+  return row ? {
+    id: row.id,
+    email: row.email,
+    displayName: row.display_name,
+    passwordHash: row.password_hash,
+    isActive: row.is_active === 1 && (row.role !== "therapist" || row.therapist_active === 1),
+    role: row.role,
+    therapistId: row.therapist_id ?? undefined,
+  } : undefined;
+}
+
+export async function createTherapistUser(db: ClinicDatabase, input: { email: string; displayName: string; passwordHash: string }): Promise<{ staffId: number; therapistId: number }> {
+  const staffId = await createStaffUser(db, { ...input, role: "therapist" });
+  const therapist = firstRow<{ id: number }>((await db.execute({
+    sql: "SELECT id FROM therapists WHERE staff_user_id = ?",
+    args: [staffId],
+  })).rows);
+  if (!therapist) throw new Error("Therapist profile creation failed.");
+  return { staffId, therapistId: therapist.id };
 }
 
 export async function rotateStaffSession(db: ClinicDatabase, input: { staffId: number; tokenHash: string; previousTokenHash?: string; createdAt: string; expiresAt: string }): Promise<void> {
@@ -34,18 +56,20 @@ export async function rotateStaffSession(db: ClinicDatabase, input: { staffId: n
 }
 
 export async function findStaffSession(db: ClinicDatabase, tokenHash: string, now: Date): Promise<(StaffIdentity & { expiresAt: string }) | undefined> {
-  const row = firstRow<{ staff_id: number; email: string; display_name: string; is_active: number; expires_at: string }>((await db.execute({
-    sql: `SELECT u.id AS staff_id, u.email, u.display_name, u.is_active, s.expires_at
+  const row = firstRow<{ staff_id: number; email: string; display_name: string; is_active: number; role: StaffRole; therapist_id: number | null; therapist_active: number | null; expires_at: string }>((await db.execute({
+    sql: `SELECT u.id AS staff_id, u.email, u.display_name, u.is_active, u.role,
+                 t.id AS therapist_id, t.is_active AS therapist_active, s.expires_at
           FROM staff_sessions s JOIN staff_users u ON u.id = s.staff_user_id
+          LEFT JOIN therapists t ON t.staff_user_id = u.id
           WHERE s.token_hash = ?`,
     args: [tokenHash],
   })).rows);
   if (!row) return undefined;
-  if (row.is_active !== 1 || new Date(row.expires_at).getTime() <= now.getTime()) {
+  if (row.is_active !== 1 || (row.role === "therapist" && row.therapist_active !== 1) || new Date(row.expires_at).getTime() <= now.getTime()) {
     await revokeStaffSession(db, tokenHash);
     return undefined;
   }
-  return { id: row.staff_id, email: row.email, displayName: row.display_name, expiresAt: row.expires_at };
+  return { id: row.staff_id, email: row.email, displayName: row.display_name, role: row.role, therapistId: row.therapist_id ?? undefined, expiresAt: row.expires_at };
 }
 
 export async function revokeStaffSession(db: ClinicDatabase, tokenHash: string): Promise<void> {

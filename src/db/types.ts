@@ -1,5 +1,6 @@
 export type AgentStatus = "active" | "on_leave" | "discharged";
 export type AppointmentStatus = "pending" | "confirmed" | "cancelled";
+export type StaffRole = "staff" | "therapist";
 
 export interface AgentRecord {
   id: number;
@@ -26,9 +27,31 @@ export interface AppointmentRecord {
   agent_id: number;
   agent_name: string;
   therapist_name: string;
+  therapist_id: number | null;
+  slot_id: number | null;
   scheduled_at: string;
   status: AppointmentStatus;
   created_at: string;
+}
+
+export interface AvailableSlot {
+  id: number;
+  therapist_id: number;
+  therapist_name: string;
+  scheduled_at: string;
+}
+
+export interface TherapistSlot extends AvailableSlot {
+  is_active: 0 | 1;
+  is_occupied: 0 | 1;
+}
+
+export interface TherapistSummary {
+  id: number;
+  display_name: string;
+  is_active: 0 | 1;
+  account_email: string | null;
+  upcoming_slots: number;
 }
 
 export interface AilmentSummary extends AilmentRecord {

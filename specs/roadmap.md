@@ -54,8 +54,16 @@ At this point, visitors can submit dependable feedback without requiring client-
 - Add secure login/logout, safe return paths, failure throttling, same-origin validation, and CSRF enforcement
 - Add migration, crypto, session, authorization, security, responsive, and production-browser coverage
 
+## Phase 6 — Therapist Accounts and Individual Schedules ✅
+
+- Add role-aware therapist accounts linked to canonical therapist profiles
+- Preserve legacy appointments while migrating therapist identity safely
+- Let therapists open individual future appointment times and manage only their own appointments
+- Let visitors book only authoritative available slots with concurrent collision protection
+- Keep clinic-wide dashboards and review moderation restricted to staff
+- Add migration, provisioning, ownership, security, responsive, and production-browser coverage
+
 ## Deferred
 
 - Notifications and reminders
-- Therapist accounts and schedules
 - Reporting, embedded maps, multi-site operation, and timezone coordination

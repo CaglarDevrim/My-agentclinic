@@ -126,18 +126,20 @@ describe("AgentClinic routes", () => {
 
   it("returns accessible 422 errors without writing invalid appointments", async () => {
     const before = Number((await database.execute("SELECT COUNT(*) AS count FROM appointments")).rows[0].count);
-    const response = await app.request("/agents/1/appointments", { method: "POST", body: new URLSearchParams({ therapistName: "", date: "2025-01-01", time: "10:00" }) });
+    const response = await app.request("/agents/1/appointments", { method: "POST", body: new URLSearchParams({ slotId: "" }) });
     const html = await response.text();
     expect(response.status).toBe(422);
     expect(html).toContain('role="alert"');
     expect(html).toContain('aria-invalid="true"');
-    expect(html).toContain("Choose an appointment in the future.");
+    expect(html).toContain("Choose an available appointment time.");
     const after = Number((await database.execute("SELECT COUNT(*) AS count FROM appointments")).rows[0].count);
     expect(after).toBe(before);
   });
 
   it("persists a valid appointment with PRG and renders confirmation", async () => {
-    const response = await app.request("/agents/1/appointments", { method: "POST", body: new URLSearchParams({ therapistName: "Dr Test <script>", date: "2099-12-20", time: "10:30" }) });
+    const therapist = await database.execute({ sql: "INSERT INTO therapists (normalized_name, display_name) VALUES (?, ?)", args: ["dr test <script>", "Dr Test <script>"] });
+    const slot = await database.execute({ sql: "INSERT INTO therapist_slots (therapist_id, scheduled_at) VALUES (?, ?)", args: [Number(therapist.lastInsertRowid), "2099-12-20T10:30"] });
+    const response = await app.request("/agents/1/appointments", { method: "POST", body: new URLSearchParams({ slotId: String(slot.lastInsertRowid) }) });
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe("/agents/1/appointments/4");
     const confirmation = await app.request(response.headers.get("location")!);
@@ -148,41 +150,38 @@ describe("AgentClinic routes", () => {
     expect(html).toContain("2099-12-20 at 10:30");
   });
 
-  it("rejects normalized therapist slot collisions and preserves submitted values", async () => {
+  it("rejects occupied slots and releases them after cancellation", async () => {
     const before = Number((await database.execute("SELECT COUNT(*) AS count FROM appointments")).rows[0].count);
-    const response = await app.request("/agents/2/appointments", {
-      method: "POST",
-      body: new URLSearchParams({ therapistName: "  dr evelyn watts  ", date: "2099-01-15", time: "10:00" }),
-    });
+    const slotId = Number((await database.execute("SELECT id FROM therapist_slots WHERE scheduled_at = '2099-04-10T10:00'")).rows[0].id);
+    const first = await app.request("/agents/1/appointments", { method: "POST", body: new URLSearchParams({ slotId: String(slotId) }) });
+    expect(first.status).toBe(303);
+    const appointmentId = Number(first.headers.get("location")?.split("/").at(-1));
+    const response = await app.request("/agents/2/appointments", { method: "POST", body: new URLSearchParams({ slotId: String(slotId) }) });
     const html = await response.text();
     expect(response.status).toBe(422);
     expect(html).toContain('role="alert"');
     expect(html).toContain('autofocus');
-    expect(html).toContain("This therapist already has an appointment at that time.");
-    expect(html).toContain('value="dr evelyn watts"');
-    expect(html).toContain('value="2099-01-15"');
-    expect(html).toContain('value="10:00"');
-    expect(Number((await database.execute("SELECT COUNT(*) AS count FROM appointments")).rows[0].count)).toBe(before);
+    expect(html).toContain("That appointment time is no longer available.");
+    expect(Number((await database.execute("SELECT COUNT(*) AS count FROM appointments")).rows[0].count)).toBe(before + 1);
 
-    const released = await app.request("/agents/2/appointments", {
-      method: "POST",
-      body: new URLSearchParams({ therapistName: "Dr Evelyn Watts", date: "2099-03-05", time: "09:00" }),
-    });
+    expect((await staffRequest(`/dashboard/appointments/${appointmentId}/cancel`, { method: "POST" })).status).toBe(303);
+    const released = await app.request("/agents/2/appointments", { method: "POST", body: new URLSearchParams({ slotId: String(slotId) }) });
     expect(released.status).toBe(303);
   });
 
   it("serializes concurrent booking requests into one creation and one accessible conflict", async () => {
-    const request = (agentId: number, therapistName: string) => app.request(`/agents/${agentId}/appointments`, {
+    const slotId = Number((await database.execute("SELECT id FROM therapist_slots WHERE scheduled_at = '2099-04-11T14:30'")).rows[0].id);
+    const request = (agentId: number) => app.request(`/agents/${agentId}/appointments`, {
       method: "POST",
-      body: new URLSearchParams({ therapistName, date: "2099-12-22", time: "15:45" }),
+      body: new URLSearchParams({ slotId: String(slotId) }),
     });
-    const responses = await Promise.all([request(1, "Dr Route Race"), request(3, " dr route race ")]);
+    const responses = await Promise.all([request(1), request(3)]);
     expect(responses.map((response) => response.status).sort()).toEqual([303, 422]);
     const conflict = responses.find((response) => response.status === 422)!;
-    expect(await conflict.text()).toContain("This therapist already has an appointment at that time.");
+    expect(await conflict.text()).toContain("That appointment time is no longer available.");
     const count = await database.execute({
-      sql: "SELECT COUNT(*) AS count FROM appointments WHERE lower(trim(therapist_name)) = lower(?) AND scheduled_at = ?",
-      args: ["Dr Route Race", "2099-12-22T15:45"],
+      sql: "SELECT COUNT(*) AS count FROM appointments WHERE slot_id = ? AND status IN ('pending', 'confirmed')",
+      args: [slotId],
     });
     expect(Number(count.rows[0].count)).toBe(1);
   });

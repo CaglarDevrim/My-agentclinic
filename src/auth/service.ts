@@ -17,10 +17,10 @@ export async function authenticateStaffCredentials(db: ClinicDatabase, emailValu
   }
 
   await clearLoginThrottle(db, identityHash);
-  return { status: "authenticated", staff: { id: account.id, email: account.email, displayName: account.displayName } };
+  return { status: "authenticated", staff: { id: account.id, email: account.email, displayName: account.displayName, role: account.role, therapistId: account.therapistId } };
 }
 
-export async function createStaffSession(db: ClinicDatabase, staff: { id: number; email: string; displayName: string }, now: Date, previousSessionToken?: string): Promise<AuthenticatedStaff> {
+export async function createStaffSession(db: ClinicDatabase, staff: { id: number; email: string; displayName: string; role?: "staff" | "therapist"; therapistId?: number }, now: Date, previousSessionToken?: string): Promise<AuthenticatedStaff> {
   const sessionToken = createOpaqueToken();
   const expiresAt = new Date(now.getTime() + SESSION_MAX_AGE_SECONDS * 1_000).toISOString();
   await rotateStaffSession(db, {
@@ -30,7 +30,7 @@ export async function createStaffSession(db: ClinicDatabase, staff: { id: number
     createdAt: now.toISOString(),
     expiresAt,
   });
-  return { ...staff, sessionToken, csrfToken: deriveSessionCsrfToken(sessionToken), expiresAt };
+  return { ...staff, role: staff.role ?? "staff", sessionToken, csrfToken: deriveSessionCsrfToken(sessionToken), expiresAt };
 }
 
 export async function authenticateStaffSession(db: ClinicDatabase, sessionToken: string | undefined, now: Date): Promise<AuthenticatedStaff | undefined> {

@@ -3,11 +3,14 @@ export type ActiveSection = "/" | "/agents" | "/ailments" | "/therapies" | "/rev
 export interface StaffHeaderContext {
   displayName: string;
   csrfToken: string;
+  role: "staff" | "therapist";
 }
 
 interface HeaderProps { activePath: ActiveSection; staff?: StaffHeaderContext; }
 
 export function Header({ activePath, staff }: HeaderProps) {
+  const dashboardHref = staff?.role === "therapist" ? "/dashboard/schedule" : "/dashboard";
+  const dashboardLabel = staff?.role === "therapist" ? "My schedule" : "Dashboard";
   return (
     <header class="site-header">
       <div class="site-header__inner">
@@ -27,12 +30,12 @@ export function Header({ activePath, staff }: HeaderProps) {
               ["/therapies", "Therapies"],
               ["/reviews", "Customer Reviews"],
               ["/about", "About"],
-              ["/dashboard", "Dashboard"],
+              [dashboardHref, dashboardLabel],
             ].map(([href, label]) => (
               <li>
                 <a
                   href={href}
-                  aria-current={activePath === href ? "page" : undefined}
+                  aria-current={activePath === "/dashboard" && href.startsWith("/dashboard") ? "page" : activePath === href ? "page" : undefined}
                 >
                   {label}
                 </a>
@@ -42,7 +45,7 @@ export function Header({ activePath, staff }: HeaderProps) {
         </nav>
       </div>
       {staff && (
-        <div class="staff-session" aria-label="Signed-in staff">
+        <div class="staff-session" aria-label="Signed-in clinic account">
           <span>Signed in as <strong>{staff.displayName}</strong></span>
           <form method="post" action="/logout">
             <input type="hidden" name="_csrf" value={staff.csrfToken} />

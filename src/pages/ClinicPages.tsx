@@ -3,7 +3,10 @@ import type {
   AgentRecord,
   AilmentSummary,
   AppointmentRecord,
+  AvailableSlot,
   DashboardData,
+  TherapistSlot,
+  TherapistSummary,
   TherapySummary,
 } from "../db/types.js";
 import { Layout } from "../components/Layout.js";
@@ -159,19 +162,19 @@ export function TherapiesPage({ therapies }: { therapies: TherapySummary[] }) {
 }
 
 export interface AppointmentValues {
-  therapistName: string;
-  date: string;
-  time: string;
+  slotId: string;
 }
 
 export type AppointmentErrors = Partial<Record<keyof AppointmentValues, string>>;
 
 export function AppointmentFormPage({
   agent,
-  values = { therapistName: "", date: "", time: "" },
+  slots,
+  values = { slotId: "" },
   errors = {},
 }: {
   agent: AgentRecord;
+  slots: AvailableSlot[];
   values?: AppointmentValues;
   errors?: AppointmentErrors;
 }) {
@@ -179,28 +182,26 @@ export function AppointmentFormPage({
   return (
     <Layout title={`Book ${agent.name} | AgentClinic`} activePath="/agents">
       <div class="form-shell">
-        <PageHeading title={`Book care for ${agent.name}`} description="Choose a therapist and a future appointment time." />
+        <PageHeading title={`Book care for ${agent.name}`} description="Choose one of the clinic's available therapist times." />
         {hasErrors && (
           <div class="error-summary" role="alert" tabIndex={-1} autofocus>
             <h2>Please correct the following</h2>
             <ul>{Object.entries(errors).map(([field, message]) => <li><a href={`#${field}`}>{message}</a></li>)}</ul>
           </div>
         )}
-        <form class="appointment-form" method="post" action={`/agents/${agent.id}/appointments`} noValidate>
-          <label for="therapistName">Therapist name</label>
-          <input id="therapistName" name="therapistName" value={values.therapistName} aria-invalid={errors.therapistName ? "true" : undefined} aria-describedby={errors.therapistName ? "therapistName-error" : undefined} />
-          {errors.therapistName && <p class="field-error" id="therapistName-error">{errors.therapistName}</p>}
-          <label for="date">Date</label>
-          <input id="date" name="date" type="date" value={values.date} aria-invalid={errors.date ? "true" : undefined} aria-describedby={errors.date ? "date-error" : undefined} />
-          {errors.date && <p class="field-error" id="date-error">{errors.date}</p>}
-          <label for="time">Time</label>
-          <input id="time" name="time" type="time" value={values.time} aria-invalid={errors.time ? "true" : undefined} aria-describedby={errors.time ? "time-error" : undefined} />
-          {errors.time && <p class="field-error" id="time-error">{errors.time}</p>}
+        {slots.length ? <form class="appointment-form" method="post" action={`/agents/${agent.id}/appointments`} noValidate>
+          <label for="slotId">Available appointment</label>
+          <select id="slotId" name="slotId" required aria-invalid={errors.slotId ? "true" : undefined} aria-describedby={errors.slotId ? "slotId-error" : "slotId-hint"}>
+            <option value="">Choose an available time</option>
+            {slots.map((slot) => <option value={slot.id} selected={values.slotId === String(slot.id)}>{slot.therapist_name} — {formatAppointment(slot.scheduled_at)}</option>)}
+          </select>
+          <p class="field-hint" id="slotId-hint">Only currently available future times are shown.</p>
+          {errors.slotId && <p class="field-error" id="slotId-error">{errors.slotId}</p>}
           <div class="page-actions">
             <button class="button" type="submit">Request appointment</button>
             <a class="button button--secondary" href={`/agents/${agent.id}`}>Cancel</a>
           </div>
-        </form>
+        </form> : <section class="review-empty" aria-labelledby="no-slots-title"><h2 id="no-slots-title">No appointments available</h2><p>Clinic therapists have not opened any future times yet. Please check again later.</p><p class="page-actions"><a class="button button--secondary" href={`/agents/${agent.id}`}>Back to agent</a></p></section>}
       </div>
     </Layout>
   );
@@ -232,6 +233,7 @@ export function DashboardPage({ data, staff }: { data: DashboardData; staff: Sta
   return (
     <Layout title="Dashboard | AgentClinic" activePath="/dashboard" staff={staff}>
       <PageHeading title="Dashboard" />
+      <p class="page-actions"><a class="button button--secondary" href="/dashboard/therapists">View therapists</a></p>
       <dl class="metrics">
         <div><dt>Total agents</dt><dd>{data.totalAgents}</dd></div>
         <div><dt>Open appointments</dt><dd>{data.openAppointments}</dd></div>
@@ -269,6 +271,70 @@ export function DashboardPage({ data, staff }: { data: DashboardData; staff: Sta
       </DashboardTable>
       <DashboardTable title="Ailment workload" headers={["Ailment", "Affected agents"]}>
         {data.ailments.map((ailment) => <tr><th scope="row" data-label="Ailment">{ailment.name}</th><td data-label="Affected agents">{ailment.agent_count}</td></tr>)}
+      </DashboardTable>
+    </Layout>
+  );
+}
+
+export function TherapistDirectoryPage({ therapists, staff }: { therapists: TherapistSummary[]; staff: StaffHeaderContext }) {
+  return (
+    <Layout title="Therapists | AgentClinic" activePath="/dashboard" staff={staff}>
+      <PageHeading title="Therapists" description="Review therapist profiles, linked accounts, and upcoming availability." />
+      <DashboardTable title="Therapist directory" headers={["Therapist", "Account", "Status", "Upcoming slots"]}>
+        {therapists.length ? therapists.map((therapist) => <tr>
+          <th scope="row" data-label="Therapist">{therapist.display_name}</th>
+          <td data-label="Account">{therapist.account_email ?? "Not linked"}</td>
+          <td data-label="Status">{therapist.is_active === 1 ? "Active" : "Inactive"}</td>
+          <td data-label="Upcoming slots">{therapist.upcoming_slots}</td>
+        </tr>) : <tr class="empty-row"><td colspan={4}>No therapist profiles.</td></tr>}
+      </DashboardTable>
+      <p class="page-actions"><a class="button button--secondary" href="/dashboard">Back to dashboard</a></p>
+    </Layout>
+  );
+}
+
+export interface ScheduleValues { scheduledAt: string; }
+export interface ScheduleErrors { scheduledAt?: string; }
+
+export function TherapistSchedulePage({ slots, staff, values = { scheduledAt: "" }, errors = {} }: { slots: TherapistSlot[]; staff: StaffHeaderContext; values?: ScheduleValues; errors?: ScheduleErrors }) {
+  return (
+    <Layout title="My schedule | AgentClinic" activePath="/dashboard" staff={staff}>
+      <PageHeading title="My schedule" description="Open individual future times for agents to book." />
+      {errors.scheduledAt && <div class="error-summary" role="alert" tabIndex={-1} autofocus><h2>Check the appointment time</h2><p><a href="#scheduledAt">{errors.scheduledAt}</a></p></div>}
+      <form class="appointment-form schedule-form" method="post" action="/dashboard/schedule/slots" noValidate>
+        <input type="hidden" name="_csrf" value={staff.csrfToken} />
+        <label for="scheduledAt">Future appointment time</label>
+        <input id="scheduledAt" name="scheduledAt" type="datetime-local" value={values.scheduledAt} aria-invalid={errors.scheduledAt ? "true" : undefined} aria-describedby={errors.scheduledAt ? "scheduledAt-error" : "scheduledAt-hint"} />
+        <p class="field-hint" id="scheduledAt-hint">Times use the clinic's local clock.</p>
+        {errors.scheduledAt && <p class="field-error" id="scheduledAt-error">{errors.scheduledAt}</p>}
+        <p class="page-actions"><button class="button" type="submit">Open appointment time</button><a class="button button--secondary" href="/dashboard/appointments">My appointments</a></p>
+      </form>
+      <DashboardTable title="Upcoming times" headers={["When", "State", "Actions"]}>
+        {slots.length ? slots.map((slot) => <tr>
+          <th scope="row" data-label="When">{formatAppointment(slot.scheduled_at)}</th>
+          <td data-label="State">{slot.is_occupied === 1 ? "Occupied" : "Available"}</td>
+          <td data-label="Actions">{slot.is_occupied === 1 ? "Booked times cannot be removed." : <form method="post" action={`/dashboard/schedule/slots/${slot.id}/remove`}><input type="hidden" name="_csrf" value={staff.csrfToken} /><button class="button button--secondary button--compact" type="submit" aria-label={`Remove appointment time ${formatAppointment(slot.scheduled_at)}`}>Remove</button></form>}</td>
+        </tr>) : <tr class="empty-row"><td colspan={3}>No upcoming appointment times.</td></tr>}
+      </DashboardTable>
+    </Layout>
+  );
+}
+
+export function TherapistAppointmentsPage({ appointments, staff }: { appointments: AppointmentRecord[]; staff: StaffHeaderContext }) {
+  return (
+    <Layout title="My appointments | AgentClinic" activePath="/dashboard" staff={staff}>
+      <PageHeading title="My appointments" description="Review and manage appointments assigned to you." />
+      <p class="page-actions"><a class="button button--secondary" href="/dashboard/schedule">My schedule</a></p>
+      <DashboardTable title="Open appointments" headers={["Agent", "When", "Status", "Actions"]}>
+        {appointments.length ? appointments.map((appointment) => <tr>
+          <th scope="row" data-label="Agent"><a href={`/agents/${appointment.agent_id}`}>{appointment.agent_name}</a></th>
+          <td data-label="When">{formatAppointment(appointment.scheduled_at)}</td>
+          <td data-label="Status"><StatusText status={appointment.status} /></td>
+          <td data-label="Actions"><div class="appointment-actions">
+            {appointment.status === "pending" && <form method="post" action={`/dashboard/appointments/${appointment.id}/confirm`}><input type="hidden" name="_csrf" value={staff.csrfToken} /><button class="button button--compact" type="submit" aria-label={`Confirm appointment for ${appointment.agent_name}`}>Confirm</button></form>}
+            <form method="post" action={`/dashboard/appointments/${appointment.id}/cancel`}><input type="hidden" name="_csrf" value={staff.csrfToken} /><button class="button button--secondary button--compact" type="submit" aria-label={`Cancel appointment for ${appointment.agent_name}`}>Cancel</button></form>
+          </div></td>
+        </tr>) : <tr class="empty-row"><td colspan={4}>No open appointments.</td></tr>}
       </DashboardTable>
     </Layout>
   );

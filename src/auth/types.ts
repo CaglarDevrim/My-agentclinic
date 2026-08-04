@@ -1,7 +1,11 @@
+import type { StaffRole } from "../db/types.js";
+
 export interface StaffIdentity {
   id: number;
   email: string;
   displayName: string;
+  role: StaffRole;
+  therapistId?: number;
 }
 
 export interface StaffAccountSecret extends StaffIdentity {
