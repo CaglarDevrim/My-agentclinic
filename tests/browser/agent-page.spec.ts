@@ -81,15 +81,21 @@ test("completes agent care and appointment booking", async ({ page }) => {
   await page.getByRole("button", { name: "Request appointment" }).click();
   await expect(page.getByRole("alert")).toBeVisible();
   await expect(page.locator("#slotId-error")).toBeVisible();
+  await expect(page.locator("#email-error")).toBeVisible();
+  await expect(page.locator("#notificationConsent-error")).toBeVisible();
 
   const slotSelect = page.getByLabel("Available appointment");
   const selectedValue = await slotSelect.locator("option").filter({ hasText: therapistName }).getAttribute("value");
   if (!selectedValue) throw new Error("Expected a seeded therapist slot.");
   await slotSelect.selectOption(selectedValue);
+  await page.getByLabel("Notification email").fill("browser.visitor@example.com");
+  await page.getByLabel("AgentClinic may send me notifications about this appointment.").check();
   await page.getByRole("button", { name: "Request appointment" }).click();
   await expect(page).toHaveURL(/\/agents\/1\/appointments\/\d+$/);
   await expect(page.getByRole("heading", { level: 1, name: "Appointment requested" })).toBeVisible();
   await expect(page.getByText(therapistName)).toBeVisible();
+  await expect(page.getByText("browser.visitor@example.com")).toHaveCount(0);
+  expect(page.url()).not.toContain("browser.visitor@example.com");
 
   await page.getByRole("link", { name: "View dashboard" }).click();
   await signInAsStaff(page);
@@ -106,10 +112,12 @@ test("completes agent care and appointment booking", async ({ page }) => {
 
   await page.goto("/agents/1/appointments/new");
   await page.getByLabel("Available appointment").selectOption(selectedValue);
+  await page.getByLabel("Notification email").fill("browser.visitor@example.com");
+  await page.getByLabel("AgentClinic may send me notifications about this appointment.").check();
   await page.getByRole("button", { name: "Request appointment" }).click();
   await expect(page).toHaveURL(/\/agents\/1\/appointments\/\d+$/);
 
-  const stale = await page.request.post("/agents/2/appointments", { form: { slotId: selectedValue } });
+  const stale = await page.request.post("/agents/2/appointments", { form: { slotId: selectedValue, email: "browser.visitor@example.com", notificationConsent: "yes" } });
   expect(stale.status()).toBe(422);
   expect(await stale.text()).toContain("That appointment time is no longer available.");
 
@@ -139,6 +147,8 @@ test("lets a therapist open a slot and manage only the resulting appointment", a
   const slotId = await option.getAttribute("value");
   if (!slotId) throw new Error("Expected the therapist-created slot.");
   await page.getByLabel("Available appointment").selectOption(slotId);
+  await page.getByLabel("Notification email").fill("therapist-flow@example.com");
+  await page.getByLabel("AgentClinic may send me notifications about this appointment.").check();
   await page.getByRole("button", { name: "Request appointment" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Appointment requested" })).toBeVisible();
 

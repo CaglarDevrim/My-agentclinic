@@ -1,6 +1,8 @@
 export type AgentStatus = "active" | "on_leave" | "discharged";
 export type AppointmentStatus = "pending" | "confirmed" | "cancelled";
 export type StaffRole = "staff" | "therapist";
+export type NotificationEventKind = "appointment_created" | "appointment_confirmed" | "appointment_cancelled" | "appointment_reminder_24h";
+export type NotificationState = "pending" | "processing" | "processed" | "failed" | "suppressed";
 
 export interface AgentRecord {
   id: number;
@@ -31,7 +33,21 @@ export interface AppointmentRecord {
   slot_id: number | null;
   scheduled_at: string;
   status: AppointmentStatus;
+  notification_email?: string | null;
+  notification_consent_at?: string | null;
   created_at: string;
+}
+
+export interface NotificationDelivery {
+  id: number;
+  appointment_id: number;
+  event_kind: NotificationEventKind;
+  recipient_email: string;
+  scheduled_for: string;
+  attempt_count: number;
+  agent_name: string;
+  therapist_name: string;
+  appointment_scheduled_at: string;
 }
 
 export interface AvailableSlot {

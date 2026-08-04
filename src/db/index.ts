@@ -4,7 +4,8 @@ import { createClient, type Client, type ResultSet } from "@libsql/client";
 
 import { migrateDatabase } from "./migrate.js";
 import { seedDatabase } from "./seed.js";
-import type { AgentDetail, AgentRecord, AilmentRecord, AilmentSummary, AppointmentRecord, AppointmentStatus, AvailableSlot, DashboardData, FeedbackInput, FeedbackRecord, PublicReview, ReviewModerationItem, TherapistSlot, TherapistSummary, TherapyRecord, TherapySummary } from "./types.js";
+import { normalizeNotificationEmail } from "../domain/notifications.js";
+import type { AgentDetail, AgentRecord, AilmentRecord, AilmentSummary, AppointmentRecord, AppointmentStatus, AvailableSlot, DashboardData, FeedbackInput, FeedbackRecord, NotificationDelivery, NotificationEventKind, PublicReview, ReviewModerationItem, TherapistSlot, TherapistSummary, TherapyRecord, TherapySummary } from "./types.js";
 
 export type ClinicDatabase = Client;
 
@@ -150,21 +151,39 @@ export async function listAvailableSlots(db: ClinicDatabase, now: Date): Promise
   }));
 }
 
-export async function createAppointmentFromSlot(db: ClinicDatabase, input: { agentId: number; slotId: number; now: Date }): Promise<AppointmentCreationResult> {
+export async function createAppointmentFromSlot(db: ClinicDatabase, input: { agentId: number; slotId: number; now: Date; notificationEmail?: string }): Promise<AppointmentCreationResult> {
   try {
-    const result = await db.execute({
-      sql: `INSERT INTO appointments (agent_id, therapist_name, scheduled_at, status, therapist_id, slot_id)
-            SELECT ?, t.display_name, s.scheduled_at, 'pending', s.therapist_id, s.id
+    const currentMinute = localMinute(input.now);
+    const notificationEmail = input.notificationEmail ? normalizeNotificationEmail(input.notificationEmail) : undefined;
+    const results = await db.batch([{
+      sql: `INSERT INTO appointments (agent_id, therapist_name, scheduled_at, status, therapist_id, slot_id, notification_email, notification_consent_at)
+            SELECT ?, t.display_name, s.scheduled_at, 'pending', s.therapist_id, s.id, ?, ?
             FROM therapist_slots s JOIN therapists t ON t.id = s.therapist_id
             WHERE s.id = ? AND s.is_active = 1 AND t.is_active = 1 AND s.scheduled_at > ?
               AND NOT EXISTS (
                 SELECT 1 FROM appointments a
                 WHERE a.slot_id = s.id AND a.status IN ('pending', 'confirmed')
               )`,
-      args: [input.agentId, input.slotId, localMinute(input.now)],
-    });
+      args: [input.agentId, notificationEmail ?? null, notificationEmail ? currentMinute : null, input.slotId, currentMinute],
+    }, {
+      sql: `INSERT INTO notification_outbox (appointment_id, event_kind, recipient_email, scheduled_for)
+            SELECT ap.id, 'appointment_created', ap.notification_email, ?
+            FROM appointments ap
+            WHERE ap.slot_id = ? AND ap.status = 'pending' AND ap.notification_consent_at = ?
+              AND ap.notification_email = ? AND changes() = 1
+            UNION ALL
+            SELECT ap.id, 'appointment_reminder_24h', ap.notification_email,
+                   strftime('%Y-%m-%dT%H:%M', ap.scheduled_at, '-24 hours')
+            FROM appointments ap
+            WHERE ap.slot_id = ? AND ap.status = 'pending' AND ap.notification_consent_at = ?
+              AND ap.notification_email = ? AND changes() = 1
+              AND julianday(ap.scheduled_at) - julianday(?) > 1`,
+      args: [currentMinute, input.slotId, currentMinute, notificationEmail ?? null, input.slotId, currentMinute, notificationEmail ?? null, currentMinute],
+    }], "write");
+    const result = results[0];
     if (result.rowsAffected === 0 || result.lastInsertRowid === undefined) return { status: "conflict" };
-    return { status: "created", appointmentId: Number(result.lastInsertRowid) };
+    const appointmentId = Number(result.lastInsertRowid);
+    return { status: "created", appointmentId };
   } catch (error) {
     if (isSqliteConstraintError(error)) return { status: "conflict" };
     throw error;
@@ -175,41 +194,112 @@ export async function findAppointment(db: ClinicDatabase, agentId: number, appoi
   return firstAs<AppointmentRecord>(await db.execute({ sql: "SELECT ap.id, ap.agent_id, ag.name AS agent_name, ap.therapist_name, ap.therapist_id, ap.slot_id, ap.scheduled_at, ap.status, ap.created_at FROM appointments ap JOIN agents ag ON ag.id = ap.agent_id WHERE ap.agent_id = ? AND ap.id = ?", args: [agentId, appointmentId] }));
 }
 
-async function findAppointmentStatus(db: ClinicDatabase, appointmentId: number): Promise<AppointmentStatus | undefined> {
+async function findAppointmentStatus(db: Pick<ClinicDatabase, "execute">, appointmentId: number): Promise<AppointmentStatus | undefined> {
   return firstAs<{ status: AppointmentStatus }>(await db.execute({
     sql: "SELECT status FROM appointments WHERE id = ?",
     args: [appointmentId],
   }))?.status;
 }
 
-export async function confirmAppointment(db: ClinicDatabase, appointmentId: number, therapistId?: number): Promise<AppointmentTransitionResult> {
-  const result = await db.execute({
+export async function confirmAppointment(db: ClinicDatabase, appointmentId: number, therapistId?: number, now = new Date()): Promise<AppointmentTransitionResult> {
+  const results = await db.batch([{
     sql: "UPDATE appointments SET status = 'confirmed' WHERE id = ? AND status = 'pending' AND (? IS NULL OR therapist_id = ?)",
     args: [appointmentId, therapistId ?? null, therapistId ?? null],
-  });
-  if (result.rowsAffected > 0) return "updated";
+  }, {
+    sql: `INSERT OR IGNORE INTO notification_outbox (appointment_id, event_kind, recipient_email, scheduled_for)
+          SELECT id, 'appointment_confirmed', notification_email, ? FROM appointments
+          WHERE id = ? AND changes() = 1 AND notification_email IS NOT NULL AND notification_consent_at IS NOT NULL`,
+    args: [localMinute(now), appointmentId],
+  }], "write");
+  if (results[0].rowsAffected > 0) return "updated";
   const status = await findAppointmentStatusForScope(db, appointmentId, therapistId);
   if (!status) return "not_found";
   return status === "confirmed" ? "unchanged" : "invalid_transition";
 }
 
-export async function cancelAppointment(db: ClinicDatabase, appointmentId: number, therapistId?: number): Promise<AppointmentTransitionResult> {
-  const result = await db.execute({
-    sql: "UPDATE appointments SET status = 'cancelled' WHERE id = ? AND status IN ('pending', 'confirmed') AND (? IS NULL OR therapist_id = ?)",
-    args: [appointmentId, therapistId ?? null, therapistId ?? null],
-  });
-  if (result.rowsAffected > 0) return "updated";
+export async function cancelAppointment(db: ClinicDatabase, appointmentId: number, therapistId?: number, now = new Date()): Promise<AppointmentTransitionResult> {
+  const results = await db.batch([{
+      sql: "UPDATE appointments SET status = 'cancelled' WHERE id = ? AND status IN ('pending', 'confirmed') AND (? IS NULL OR therapist_id = ?)",
+      args: [appointmentId, therapistId ?? null, therapistId ?? null],
+  }, {
+    sql: `INSERT OR IGNORE INTO notification_outbox (appointment_id, event_kind, recipient_email, scheduled_for)
+          SELECT id, 'appointment_cancelled', notification_email, ? FROM appointments
+          WHERE id = ? AND changes() = 1 AND notification_email IS NOT NULL AND notification_consent_at IS NOT NULL`,
+    args: [localMinute(now), appointmentId],
+  }, {
+    sql: `UPDATE notification_outbox SET state = 'suppressed'
+          WHERE appointment_id = ? AND event_kind = 'appointment_reminder_24h'
+            AND state IN ('pending', 'failed')
+            AND EXISTS (SELECT 1 FROM appointments WHERE id = ? AND status = 'cancelled')`,
+    args: [appointmentId, appointmentId],
+  }], "write");
+  if (results[0].rowsAffected > 0) return "updated";
   const status = await findAppointmentStatusForScope(db, appointmentId, therapistId);
   if (!status) return "not_found";
   return status === "cancelled" ? "unchanged" : "invalid_transition";
 }
 
-async function findAppointmentStatusForScope(db: ClinicDatabase, appointmentId: number, therapistId?: number): Promise<AppointmentStatus | undefined> {
+async function findAppointmentStatusForScope(db: Pick<ClinicDatabase, "execute">, appointmentId: number, therapistId?: number): Promise<AppointmentStatus | undefined> {
   if (therapistId === undefined) return findAppointmentStatus(db, appointmentId);
   return firstAs<{ status: AppointmentStatus }>(await db.execute({
     sql: "SELECT status FROM appointments WHERE id = ? AND therapist_id = ?",
     args: [appointmentId, therapistId],
   }))?.status;
+}
+
+export async function prepareNotificationRun(db: ClinicDatabase, now: Date): Promise<void> {
+  await db.batch([{
+    sql: "UPDATE notification_outbox SET state = 'pending' WHERE state = 'failed'",
+    args: [],
+  }, {
+    sql: `UPDATE notification_outbox SET state = 'suppressed'
+          WHERE event_kind = 'appointment_reminder_24h' AND state IN ('pending', 'failed')
+            AND EXISTS (
+              SELECT 1 FROM appointments ap
+              WHERE ap.id = notification_outbox.appointment_id
+                AND (ap.status = 'cancelled' OR ap.scheduled_at <= ?)
+            )`,
+    args: [localMinute(now)],
+  }], "write");
+}
+
+export async function claimNextDueNotification(db: ClinicDatabase, now: Date): Promise<NotificationDelivery | undefined> {
+  const claimed = firstAs<Pick<NotificationDelivery, "id">>(await db.execute({
+    sql: `UPDATE notification_outbox
+          SET state = 'processing', attempt_count = attempt_count + 1, last_error = NULL
+          WHERE id = (
+            SELECT n.id FROM notification_outbox n JOIN appointments ap ON ap.id = n.appointment_id
+            WHERE n.state = 'pending' AND n.scheduled_for <= ?
+              AND (n.event_kind <> 'appointment_reminder_24h' OR (ap.status IN ('pending', 'confirmed') AND ap.scheduled_at > ?))
+            ORDER BY n.scheduled_for, n.id LIMIT 1
+          ) AND state = 'pending'
+          RETURNING id`,
+    args: [localMinute(now), localMinute(now)],
+  }));
+  if (!claimed) return undefined;
+  return firstAs<NotificationDelivery>(await db.execute({
+    sql: `SELECT n.id, n.appointment_id, n.event_kind, n.recipient_email, n.scheduled_for, n.attempt_count,
+                 ag.name AS agent_name, ap.therapist_name, ap.scheduled_at AS appointment_scheduled_at
+          FROM notification_outbox n
+          JOIN appointments ap ON ap.id = n.appointment_id
+          JOIN agents ag ON ag.id = ap.agent_id
+          WHERE n.id = ? AND n.state = 'processing'`,
+    args: [claimed.id],
+  }));
+}
+
+export async function completeNotification(db: ClinicDatabase, notificationId: number, now: Date): Promise<void> {
+  await db.execute({
+    sql: "UPDATE notification_outbox SET state = 'processed', processed_at = ?, last_error = NULL WHERE id = ? AND state = 'processing'",
+    args: [localMinute(now), notificationId],
+  });
+}
+
+export async function failNotification(db: ClinicDatabase, notificationId: number): Promise<void> {
+  await db.execute({
+    sql: "UPDATE notification_outbox SET state = 'failed', last_error = 'Preview transport failed' WHERE id = ? AND state = 'processing'",
+    args: [notificationId],
+  });
 }
 
 export async function listTherapists(db: ClinicDatabase, now: Date): Promise<TherapistSummary[]> {

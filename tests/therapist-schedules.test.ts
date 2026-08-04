@@ -86,7 +86,7 @@ describe("therapist accounts and schedules", () => {
     expect(scheduleHtml).toContain("Available");
 
     const slotId = Number((await db.execute({ sql: "SELECT id FROM therapist_slots WHERE therapist_id = ? AND scheduled_at = ?", args: [created.therapistId, "2099-08-20T11:15"] })).rows[0].id);
-    const booking = await app.request("/agents/1/appointments", { method: "POST", body: new URLSearchParams({ slotId: String(slotId) }) });
+    const booking = await app.request("/agents/1/appointments", { method: "POST", body: new URLSearchParams({ slotId: String(slotId), email: "visitor@example.com", notificationConsent: "yes" }) });
     expect(booking.status).toBe(303);
     const appointments = await request("/dashboard/appointments");
     expect(await appointments.text()).toContain("Bartholomew-47B");

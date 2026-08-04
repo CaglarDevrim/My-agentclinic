@@ -8,6 +8,7 @@
     "db:setup": "tsx src/db/setup.ts",
     "staff:create": "tsx src/staff-create.ts",
     "therapist:create": "tsx src/therapist-create.ts",
+    "notifications:process": "tsx src/notifications-process.ts",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.playwright.json",
