@@ -6,10 +6,11 @@ import { clearLoginCsrfCookie, clearSessionCookie, readLoginCsrfCookie, readSess
 import { authenticateStaffCredentials, authenticateStaffSession, createStaffSession, endStaffSession } from "./auth/service.js";
 import { constantTimeStringEqual, createLoginCsrfToken, hasSameOrigin, isFreshLoginCsrfToken, isValidStaffEmail, isValidStaffPassword, normalizeStaffEmail, safeDashboardReturnTo } from "./auth/security.js";
 import type { AuthenticatedStaff } from "./auth/types.js";
-import { approveReview, cancelAppointment, confirmAppointment, createAppointmentFromSlot, createFeedback, createTherapistSlot, findAgent, findAppointment, getDashboard, listAgents, listAilments, listAvailableSlots, listPublicReviews, listReviewModerationItems, listTherapistAppointments, listTherapists, listTherapistSlots, listTherapies, removeTherapistSlot, unpublishReview, type ClinicDatabase } from "./db/index.js";
+import { approveReview, cancelAppointment, confirmAppointment, createAppointmentFromSlot, createFeedback, createTherapistSlot, findAgent, findAppointment, getClinicReport, getDashboard, listAgents, listAilments, listAvailableSlots, listPublicReviews, listReportAppointments, listReviewModerationItems, listTherapistAppointments, listTherapists, listTherapistSlots, listTherapies, removeTherapistSlot, unpublishReview, type ClinicDatabase } from "./db/index.js";
 import { findAgentBySlug } from "./domain/care.js";
 import { validateFeedback, type FeedbackValues } from "./domain/feedback.js";
 import { normalizeNotificationEmail, validateNotificationContact } from "./domain/notifications.js";
+import { parseReportDateRange, reportCsvFilename, serializeAppointmentReportCsv } from "./domain/reporting.js";
 import { AgentPage } from "./pages/AgentPage.js";
 import { AgentDetailPage, AgentsPage, AilmentsPage, AppointmentConfirmationPage, AppointmentFormPage, DashboardPage, ErrorPage, TherapistAppointmentsPage, TherapistDirectoryPage, TherapistSchedulePage, TherapiesPage, type AppointmentErrors, type AppointmentValues } from "./pages/ClinicPages.js";
 import { HomePage } from "./pages/HomePage.js";
@@ -17,6 +18,7 @@ import { FeedbackPage, FeedbackThanksPage } from "./pages/FeedbackPage.js";
 import { ReviewModerationPage, ReviewsPage } from "./pages/ReviewPages.js";
 import { AboutPage } from "./pages/AboutPage.js";
 import { LoginPage, type LoginErrors } from "./pages/AuthPage.js";
+import { ClinicReportPage } from "./pages/ReportPage.js";
 
 export type RequestLogger = (message: string) => void;
 
@@ -203,6 +205,34 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
     const auth = context.get("staffAuth");
     if (auth.role === "therapist") return context.redirect("/dashboard/schedule", 303);
     return context.render(<DashboardPage data={await getDashboard(db)} staff={staffHeader(auth)} />);
+  });
+  app.get("/dashboard/reports", async (context) => {
+    const auth = context.get("staffAuth");
+    if (auth.role !== "staff") {
+      context.status(403);
+      return context.render(<ErrorPage status={403} title="Staff access required" message="Clinic-wide reports are available to staff only." staff={staffHeader(auth)} />);
+    }
+    const query = new URL(context.req.url).searchParams;
+    const result = parseReportDateRange(query.getAll("from"), query.getAll("to"), now());
+    if (!result.range) {
+      context.status(422);
+      return context.render(<ClinicReportPage values={result.values} errors={result.errors} staff={staffHeader(auth)} />);
+    }
+    return context.render(<ClinicReportPage report={await getClinicReport(db, result.range)} values={result.values} staff={staffHeader(auth)} />);
+  });
+  app.on(["GET", "HEAD"], "/dashboard/reports.csv", async (context) => {
+    const auth = context.get("staffAuth");
+    if (auth.role !== "staff") {
+      context.status(403);
+      return context.render(<ErrorPage status={403} title="Staff access required" message="Clinic-wide reports are available to staff only." staff={staffHeader(auth)} />);
+    }
+    const query = new URL(context.req.url).searchParams;
+    const result = parseReportDateRange(query.getAll("from"), query.getAll("to"), now());
+    if (!result.range) return context.text("Enter a valid report date range.", 422);
+    context.header("Content-Type", "text/csv; charset=utf-8");
+    context.header("Content-Disposition", `attachment; filename="${reportCsvFilename(result.range)}"`);
+    if (context.req.method === "HEAD") return context.body(null, 200);
+    return context.body(serializeAppointmentReportCsv(await listReportAppointments(db, result.range)));
   });
   app.get("/dashboard/therapists", async (context) => {
     const auth = context.get("staffAuth");

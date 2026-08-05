@@ -78,6 +78,8 @@ describe("therapist accounts and schedules", () => {
     expect(dashboard.headers.get("location")).toBe("/dashboard/schedule");
     expect((await request("/dashboard/reviews")).status).toBe(403);
     expect((await request("/dashboard/therapists")).status).toBe(403);
+    expect((await request("/dashboard/reports")).status).toBe(403);
+    expect(await (await request("/dashboard/schedule")).text()).not.toContain('href="/dashboard/reports"');
 
     const creation = await request("/dashboard/schedule/slots", { method: "POST", body: new URLSearchParams({ scheduledAt: "2099-08-20T11:15" }) });
     expect(creation.status).toBe(303);

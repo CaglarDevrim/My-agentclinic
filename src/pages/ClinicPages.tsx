@@ -245,7 +245,7 @@ export function DashboardPage({ data, staff }: { data: DashboardData; staff: Sta
   return (
     <Layout title="Dashboard | AgentClinic" activePath="/dashboard" staff={staff}>
       <PageHeading title="Dashboard" />
-      <p class="page-actions"><a class="button button--secondary" href="/dashboard/therapists">View therapists</a></p>
+      <p class="page-actions"><a class="button button--secondary" href="/dashboard/therapists">View therapists</a><a class="button button--secondary" href="/dashboard/reports">View reports</a></p>
       <dl class="metrics">
         <div><dt>Total agents</dt><dd>{data.totalAgents}</dd></div>
         <div><dt>Open appointments</dt><dd>{data.openAppointments}</dd></div>

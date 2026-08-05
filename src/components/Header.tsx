@@ -1,4 +1,4 @@
-export type ActiveSection = "/" | "/agents" | "/ailments" | "/therapies" | "/reviews" | "/about" | "/dashboard";
+export type ActiveSection = "/" | "/agents" | "/ailments" | "/therapies" | "/reviews" | "/about" | "/dashboard" | "/dashboard/reports";
 
 export interface StaffHeaderContext {
   displayName: string;
@@ -11,6 +11,15 @@ interface HeaderProps { activePath: ActiveSection; staff?: StaffHeaderContext; }
 export function Header({ activePath, staff }: HeaderProps) {
   const dashboardHref = staff?.role === "therapist" ? "/dashboard/schedule" : "/dashboard";
   const dashboardLabel = staff?.role === "therapist" ? "My schedule" : "Dashboard";
+  const navigation = [
+    ["/agents", "Agents"],
+    ["/ailments", "Ailments"],
+    ["/therapies", "Therapies"],
+    ["/reviews", "Customer Reviews"],
+    ["/about", "About"],
+    [dashboardHref, dashboardLabel],
+    ...(staff?.role === "staff" ? [["/dashboard/reports", "Reports"]] : []),
+  ];
   return (
     <header class="site-header">
       <div class="site-header__inner">
@@ -24,18 +33,11 @@ export function Header({ activePath, staff }: HeaderProps) {
 
         <nav class="site-nav" aria-label="Primary navigation">
           <ul>
-            {[
-              ["/agents", "Agents"],
-              ["/ailments", "Ailments"],
-              ["/therapies", "Therapies"],
-              ["/reviews", "Customer Reviews"],
-              ["/about", "About"],
-              [dashboardHref, dashboardLabel],
-            ].map(([href, label]) => (
+            {navigation.map(([href, label]) => (
               <li>
                 <a
                   href={href}
-                  aria-current={activePath === "/dashboard" && href.startsWith("/dashboard") ? "page" : activePath === href ? "page" : undefined}
+                  aria-current={activePath === href || (activePath === "/dashboard" && href === dashboardHref) ? "page" : undefined}
                 >
                   {label}
                 </a>

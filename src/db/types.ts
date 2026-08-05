@@ -95,6 +95,48 @@ export interface DashboardData {
   ailments: Array<AilmentRecord & { agent_count: number }>;
 }
 
+export interface ReportDateRange {
+  from: string;
+  to: string;
+  fromInclusive: string;
+  toExclusive: string;
+}
+
+export interface ClinicReportTotals {
+  total: number;
+  pending: number;
+  confirmed: number;
+  cancelled: number;
+}
+
+export interface TherapistWorkload {
+  therapist_name: string;
+  total: number;
+  pending: number;
+  confirmed: number;
+  cancelled: number;
+}
+
+export interface AgentDemand {
+  agent_id: number;
+  agent_name: string;
+  total: number;
+}
+
+export interface ReportAppointmentRow {
+  scheduled_at: string;
+  agent_name: string;
+  therapist_name: string;
+  status: AppointmentStatus;
+}
+
+export interface ClinicReport {
+  range: ReportDateRange;
+  totals: ClinicReportTotals;
+  therapistWorkload: TherapistWorkload[];
+  agentDemand: AgentDemand[];
+}
+
 export interface FeedbackInput {
   name: string;
   email: string;
