@@ -9,6 +9,7 @@ import type { AuthenticatedStaff } from "./auth/types.js";
 import { approveReview, cancelAppointment, confirmAppointment, createAppointmentFromSlot, createFeedback, createTherapistSlot, findAgent, findAppointment, getDashboard, listAgents, listAilments, listAvailableSlots, listPublicReviews, listReviewModerationItems, listTherapistAppointments, listTherapists, listTherapistSlots, listTherapies, removeTherapistSlot, unpublishReview, type ClinicDatabase } from "./db/index.js";
 import { findAgentBySlug } from "./domain/care.js";
 import { validateFeedback, type FeedbackValues } from "./domain/feedback.js";
+import { normalizeNotificationEmail, validateNotificationContact } from "./domain/notifications.js";
 import { AgentPage } from "./pages/AgentPage.js";
 import { AgentDetailPage, AgentsPage, AilmentsPage, AppointmentConfirmationPage, AppointmentFormPage, DashboardPage, ErrorPage, TherapistAppointmentsPage, TherapistDirectoryPage, TherapistSchedulePage, TherapiesPage, type AppointmentErrors, type AppointmentValues } from "./pages/ClinicPages.js";
 import { HomePage } from "./pages/HomePage.js";
@@ -39,6 +40,7 @@ function staffHeader(auth: AuthenticatedStaff) {
 function validateAppointment(values: AppointmentValues): AppointmentErrors {
   const errors: AppointmentErrors = {};
   if (!parsePositiveId(values.slotId)) errors.slotId = "Choose an available appointment time.";
+  Object.assign(errors, validateNotificationContact(values.email, values.notificationConsent).errors);
   return errors;
 }
 
@@ -263,7 +265,7 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
     const auth = context.get("staffAuth");
     const id = parsePositiveId(context.req.param("appointmentId"));
     if (!id) return context.notFound();
-    const result = await confirmAppointment(db, id, auth.role === "therapist" ? auth.therapistId : undefined);
+    const result = await confirmAppointment(db, id, auth.role === "therapist" ? auth.therapistId : undefined, now());
     if (result === "not_found") return context.notFound();
     if (result === "invalid_transition") {
       context.status(409);
@@ -275,7 +277,7 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
     const auth = context.get("staffAuth");
     const id = parsePositiveId(context.req.param("appointmentId"));
     if (!id) return context.notFound();
-    const result = await cancelAppointment(db, id, auth.role === "therapist" ? auth.therapistId : undefined);
+    const result = await cancelAppointment(db, id, auth.role === "therapist" ? auth.therapistId : undefined, now());
     if (result === "not_found") return context.notFound();
     if (result === "invalid_transition") {
       context.status(409);
@@ -360,8 +362,12 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
     const agent = id ? await findAgent(db, id) : undefined;
     if (!id || !agent) return context.notFound();
     const form = await context.req.raw.formData();
+    const emailValue = singleFormValue(form, "email") ?? "";
+    const consentValues = form.getAll("notificationConsent");
     const values: AppointmentValues = {
       slotId: singleFormValue(form, "slotId") ?? "",
+      email: /[\u0000-\u001f\u007f]/.test(emailValue) ? "" : emailValue,
+      notificationConsent: consentValues.length === 1 && consentValues[0] === "yes",
     };
     const errors = validateAppointment(values);
     if (Object.keys(errors).length) {
@@ -369,11 +375,11 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
       return context.render(<AppointmentFormPage agent={agent} slots={await listAvailableSlots(db, now())} values={values} errors={errors} />);
     }
     const slotId = parsePositiveId(values.slotId)!;
-    const result = await createAppointmentFromSlot(db, { agentId: id, slotId, now: now() });
+    const result = await createAppointmentFromSlot(db, { agentId: id, slotId, now: now(), notificationEmail: normalizeNotificationEmail(values.email) });
     if (result.status === "conflict") {
       errors.slotId = "That appointment time is no longer available. Choose another time.";
       context.status(422);
-      return context.render(<AppointmentFormPage agent={agent} slots={await listAvailableSlots(db, now())} values={{ slotId: "" }} errors={errors} />);
+      return context.render(<AppointmentFormPage agent={agent} slots={await listAvailableSlots(db, now())} values={{ ...values, slotId: "" }} errors={errors} />);
     }
     return context.redirect(`/agents/${id}/appointments/${result.appointmentId}`, 303);
   });

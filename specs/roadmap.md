@@ -63,7 +63,15 @@ At this point, visitors can submit dependable feedback without requiring client-
 - Keep clinic-wide dashboards and review moderation restricted to staff
 - Add migration, provisioning, ownership, security, responsive, and production-browser coverage
 
+## Phase 7 — Visitor Notifications and Reminders ✅
+
+- Collect a validated visitor notification email and explicit consent during booking
+- Create durable, idempotent appointment-created, confirmed, cancelled, and 24-hour reminder events
+- Keep appointment changes and notification outbox writes atomic
+- Process due events through a provider-independent local HTML and text preview transport
+- Protect visitor addresses from public pages, URLs, logs, errors, and committed artifacts
+- Add migration, retry, time-boundary, privacy, responsive, and production-browser coverage
+
 ## Deferred
 
-- Notifications and reminders
 - Reporting, embedded maps, multi-site operation, and timezone coordination

@@ -46,6 +46,10 @@ describe("AgentClinic routes", () => {
     return app.request(path, { ...init, method, headers, body });
   }
 
+  function appointmentForm(slotId: string, email = "visitor@example.com"): URLSearchParams {
+    return new URLSearchParams({ slotId, email, notificationConsent: "yes" });
+  }
+
   afterEach(() => {
     if (database && !database.closed) database.close();
   });
@@ -139,7 +143,7 @@ describe("AgentClinic routes", () => {
   it("persists a valid appointment with PRG and renders confirmation", async () => {
     const therapist = await database.execute({ sql: "INSERT INTO therapists (normalized_name, display_name) VALUES (?, ?)", args: ["dr test <script>", "Dr Test <script>"] });
     const slot = await database.execute({ sql: "INSERT INTO therapist_slots (therapist_id, scheduled_at) VALUES (?, ?)", args: [Number(therapist.lastInsertRowid), "2099-12-20T10:30"] });
-    const response = await app.request("/agents/1/appointments", { method: "POST", body: new URLSearchParams({ slotId: String(slot.lastInsertRowid) }) });
+    const response = await app.request("/agents/1/appointments", { method: "POST", body: appointmentForm(String(slot.lastInsertRowid)) });
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe("/agents/1/appointments/4");
     const confirmation = await app.request(response.headers.get("location")!);
@@ -153,10 +157,10 @@ describe("AgentClinic routes", () => {
   it("rejects occupied slots and releases them after cancellation", async () => {
     const before = Number((await database.execute("SELECT COUNT(*) AS count FROM appointments")).rows[0].count);
     const slotId = Number((await database.execute("SELECT id FROM therapist_slots WHERE scheduled_at = '2099-04-10T10:00'")).rows[0].id);
-    const first = await app.request("/agents/1/appointments", { method: "POST", body: new URLSearchParams({ slotId: String(slotId) }) });
+    const first = await app.request("/agents/1/appointments", { method: "POST", body: appointmentForm(String(slotId)) });
     expect(first.status).toBe(303);
     const appointmentId = Number(first.headers.get("location")?.split("/").at(-1));
-    const response = await app.request("/agents/2/appointments", { method: "POST", body: new URLSearchParams({ slotId: String(slotId) }) });
+    const response = await app.request("/agents/2/appointments", { method: "POST", body: appointmentForm(String(slotId)) });
     const html = await response.text();
     expect(response.status).toBe(422);
     expect(html).toContain('role="alert"');
@@ -165,7 +169,7 @@ describe("AgentClinic routes", () => {
     expect(Number((await database.execute("SELECT COUNT(*) AS count FROM appointments")).rows[0].count)).toBe(before + 1);
 
     expect((await staffRequest(`/dashboard/appointments/${appointmentId}/cancel`, { method: "POST" })).status).toBe(303);
-    const released = await app.request("/agents/2/appointments", { method: "POST", body: new URLSearchParams({ slotId: String(slotId) }) });
+    const released = await app.request("/agents/2/appointments", { method: "POST", body: appointmentForm(String(slotId)) });
     expect(released.status).toBe(303);
   });
 
@@ -173,7 +177,7 @@ describe("AgentClinic routes", () => {
     const slotId = Number((await database.execute("SELECT id FROM therapist_slots WHERE scheduled_at = '2099-04-11T14:30'")).rows[0].id);
     const request = (agentId: number) => app.request(`/agents/${agentId}/appointments`, {
       method: "POST",
-      body: new URLSearchParams({ slotId: String(slotId) }),
+      body: appointmentForm(String(slotId), `visitor-${agentId}@example.com`),
     });
     const responses = await Promise.all([request(1), request(3)]);
     expect(responses.map((response) => response.status).sort()).toEqual([303, 422]);

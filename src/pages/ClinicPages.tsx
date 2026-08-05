@@ -163,6 +163,8 @@ export function TherapiesPage({ therapies }: { therapies: TherapySummary[] }) {
 
 export interface AppointmentValues {
   slotId: string;
+  email: string;
+  notificationConsent: boolean;
 }
 
 export type AppointmentErrors = Partial<Record<keyof AppointmentValues, string>>;
@@ -170,7 +172,7 @@ export type AppointmentErrors = Partial<Record<keyof AppointmentValues, string>>
 export function AppointmentFormPage({
   agent,
   slots,
-  values = { slotId: "" },
+  values = { slotId: "", email: "", notificationConsent: false },
   errors = {},
 }: {
   agent: AgentRecord;
@@ -197,6 +199,16 @@ export function AppointmentFormPage({
           </select>
           <p class="field-hint" id="slotId-hint">Only currently available future times are shown.</p>
           {errors.slotId && <p class="field-error" id="slotId-error">{errors.slotId}</p>}
+          <label for="email">Notification email</label>
+          <input id="email" name="email" type="email" autocomplete="email" maxlength={254} required value={values.email} aria-invalid={errors.email ? "true" : undefined} aria-describedby={errors.email ? "email-hint email-error" : "email-hint"} />
+          <p class="field-hint" id="email-hint">Used only for updates and a reminder about this appointment.</p>
+          {errors.email && <p class="field-error" id="email-error">{errors.email}</p>}
+          <label class="consent-option" for="notificationConsent">
+            <input id="notificationConsent" name="notificationConsent" type="checkbox" value="yes" required checked={values.notificationConsent} aria-invalid={errors.notificationConsent ? "true" : undefined} aria-describedby={errors.notificationConsent ? "notificationConsent-hint notificationConsent-error" : "notificationConsent-hint"} />
+            <span>AgentClinic may send me notifications about this appointment.</span>
+          </label>
+          <p class="field-hint" id="notificationConsent-hint">Required for appointment updates and the 24-hour reminder.</p>
+          {errors.notificationConsent && <p class="field-error" id="notificationConsent-error">{errors.notificationConsent}</p>}
           <div class="page-actions">
             <button class="button" type="submit">Request appointment</button>
             <a class="button button--secondary" href={`/agents/${agent.id}`}>Cancel</a>

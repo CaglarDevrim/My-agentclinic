@@ -18,3 +18,4 @@ yarn-error.log*
 !/.env.example
 /playwright-report/
 /test-results/
+/.agentclinic-notifications/

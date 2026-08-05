@@ -37,6 +37,8 @@ AgentClinic uses the production-ready `@libsql/client` so the same repository la
 - `AGENTCLINIC_DB` can override the local database path.
 - Remote environments require both `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`.
 - `npm run db:setup` applies ordered migrations and deterministic seeds to the configured database.
+- `npm run notifications:process` processes currently due visitor notifications into the ignored local `.agentclinic-notifications/` preview directory.
+- `AGENTCLINIC_NOTIFICATION_PREVIEW_DIR` can override the local preview directory; preview files may contain appointment details and must never be committed.
 - Authentication tokens belong in local or Vercel environment variables and must never be committed.
 
 Use [`.env.example`](.env.example) as the variable-name reference when configuring your shell or Vercel project. Normal local development does not require environment variables.
