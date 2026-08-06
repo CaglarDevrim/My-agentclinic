@@ -72,6 +72,15 @@ At this point, visitors can submit dependable feedback without requiring client-
 - Protect visitor addresses from public pages, URLs, logs, errors, and committed artifacts
 - Add migration, retry, time-boundary, privacy, responsive, and production-browser coverage
 
+## Phase 8 — Clinic Operations Reporting ✅
+
+- Add a staff-only scheduled-date report with strict inclusive range filters
+- Show appointment status totals, therapist workload, and agent demand
+- Export the exact filtered appointment population as a privacy-safe CSV
+- Keep reporting live and read-only without snapshots, migrations, or new dependencies
+- Preserve therapist isolation, no-store behavior, accessibility, and responsive presentation
+- Add date-boundary, aggregation, CSV-safety, authorization, and production-browser coverage
+
 ## Deferred
 
-- Reporting, embedded maps, multi-site operation, and timezone coordination
+- Embedded maps, multi-site operation, and timezone coordination

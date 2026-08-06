@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
 const staffEmail = "browser.staff@example.com";
@@ -134,6 +135,7 @@ test("lets a therapist open a slot and manage only the resulting appointment", a
   await signInAsTherapist(page);
   await expect(page).toHaveURL("/dashboard/schedule");
   await expect(page.getByRole("heading", { level: 1, name: "My schedule" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Reports" })).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "My schedule" })).toHaveAttribute("aria-current", "page");
   await page.getByLabel("Future appointment time").fill(scheduledAt);
   await page.getByRole("button", { name: "Open appointment time" }).click();
@@ -171,6 +173,50 @@ test("lets a therapist open a slot and manage only the resulting appointment", a
 
   await page.goto("/dashboard/reviews");
   await expect(page.getByRole("heading", { level: 1, name: "Staff access required" })).toBeVisible();
+  const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  expect(hasHorizontalOverflow).toBe(false);
+});
+
+test("filters and exports the staff clinic report", async ({ page }) => {
+  await page.goto("/dashboard");
+  await signInAsStaff(page);
+  await page.getByRole("link", { name: "Reports", exact: true }).click();
+  await expect(page).toHaveURL("/dashboard/reports");
+  await expect(page.getByRole("heading", { level: 1, name: "Clinic reports" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Reports", exact: true })).toHaveAttribute("aria-current", "page");
+
+  await page.getByLabel("From date").fill("2099-01-01");
+  await page.getByLabel("To date").fill("2099-03-31");
+  await page.getByRole("button", { name: "Apply filters" }).click();
+  await expect(page).toHaveURL(/\/dashboard\/reports\?from=2099-01-01&to=2099-03-31$/);
+  await expect(page.getByRole("heading", { level: 2, name: "Report period: 2099-01-01 to 2099-03-31" })).toBeVisible();
+  await expect(page.locator(".report-metrics dd")).toHaveText(["3", "1", "1", "1"]);
+  await expect(page.getByRole("heading", { level: 3, name: "Therapist workload" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 3, name: "Agent demand" })).toBeVisible();
+  await expect(page.getByText("private@example.com")).toHaveCount(0);
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("link", { name: "Download CSV" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("agentclinic-appointments-2099-01-01-to-2099-03-31.csv");
+  const downloadPath = await download.path();
+  if (!downloadPath) throw new Error("Expected the report CSV download path.");
+  const csv = readFileSync(downloadPath, "utf8");
+  expect(csv).toContain("Scheduled at,Agent,Therapist,Status\r\n");
+  expect(csv.trim().split(/\r?\n/)).toHaveLength(4);
+  expect(csv).not.toContain("@example.com");
+
+  await page.getByLabel("From date").fill("2099-03-31");
+  await page.getByLabel("To date").fill("2099-01-01");
+  await page.getByRole("button", { name: "Apply filters" }).click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.locator("#to-error")).toHaveText("Choose an end date on or after the start date.");
+
+  await page.getByLabel("From date").fill("2026-01-01");
+  await page.getByLabel("To date").fill("2026-01-31");
+  await page.getByRole("button", { name: "Apply filters" }).click();
+  await expect(page.getByText("No therapist workload in this period.")).toBeVisible();
+  await expect(page.getByText("No agent demand in this period.")).toBeVisible();
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(hasHorizontalOverflow).toBe(false);
 });

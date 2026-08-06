@@ -5,7 +5,7 @@ import { createClient, type Client, type ResultSet } from "@libsql/client";
 import { migrateDatabase } from "./migrate.js";
 import { seedDatabase } from "./seed.js";
 import { normalizeNotificationEmail } from "../domain/notifications.js";
-import type { AgentDetail, AgentRecord, AilmentRecord, AilmentSummary, AppointmentRecord, AppointmentStatus, AvailableSlot, DashboardData, FeedbackInput, FeedbackRecord, NotificationDelivery, NotificationEventKind, PublicReview, ReviewModerationItem, TherapistSlot, TherapistSummary, TherapyRecord, TherapySummary } from "./types.js";
+import type { AgentDemand, AgentDetail, AgentRecord, AilmentRecord, AilmentSummary, AppointmentRecord, AppointmentStatus, AvailableSlot, ClinicReport, ClinicReportTotals, DashboardData, FeedbackInput, FeedbackRecord, NotificationDelivery, PublicReview, ReportAppointmentRow, ReportDateRange, ReviewModerationItem, TherapistSlot, TherapistSummary, TherapistWorkload, TherapyRecord, TherapySummary } from "./types.js";
 
 export type ClinicDatabase = Client;
 
@@ -387,6 +387,56 @@ export async function getDashboard(db: ClinicDatabase): Promise<DashboardData> {
     appointments: rowsAs<AppointmentRecord>(appointmentsResult),
     ailments: rowsAs<Array<AilmentRecord & { agent_count: number }>[number]>(ailmentsResult),
   };
+}
+
+export async function getClinicReport(db: ClinicDatabase, range: ReportDateRange): Promise<ClinicReport> {
+  const args = [range.fromInclusive, range.toExclusive];
+  const [totalsResult, therapistResult, agentResult] = await db.batch([{
+    sql: `SELECT COUNT(*) AS total,
+                 SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
+                 SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) AS confirmed,
+                 SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled
+          FROM appointments WHERE scheduled_at >= ? AND scheduled_at < ?`,
+    args,
+  }, {
+    sql: `SELECT therapist_name, COUNT(*) AS total,
+                 SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
+                 SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) AS confirmed,
+                 SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled
+          FROM appointments WHERE scheduled_at >= ? AND scheduled_at < ?
+          GROUP BY therapist_name
+          ORDER BY total DESC, lower(therapist_name), therapist_name`,
+    args,
+  }, {
+    sql: `SELECT ag.id AS agent_id, ag.name AS agent_name, COUNT(*) AS total
+          FROM appointments ap JOIN agents ag ON ag.id = ap.agent_id
+          WHERE ap.scheduled_at >= ? AND ap.scheduled_at < ?
+          GROUP BY ag.id, ag.name
+          ORDER BY total DESC, lower(ag.name), ag.name, ag.id`,
+    args,
+  }], "read");
+  const totals = firstAs<ClinicReportTotals>(totalsResult) ?? { total: 0, pending: 0, confirmed: 0, cancelled: 0 };
+  return {
+    range,
+    totals: {
+      total: Number(totals.total ?? 0),
+      pending: Number(totals.pending ?? 0),
+      confirmed: Number(totals.confirmed ?? 0),
+      cancelled: Number(totals.cancelled ?? 0),
+    },
+    therapistWorkload: rowsAs<TherapistWorkload>(therapistResult),
+    agentDemand: rowsAs<AgentDemand>(agentResult),
+  };
+}
+
+export async function listReportAppointments(db: ClinicDatabase, range: ReportDateRange): Promise<ReportAppointmentRow[]> {
+  return rowsAs<ReportAppointmentRow>(await db.execute({
+    sql: `SELECT ap.scheduled_at, ag.name AS agent_name, ap.therapist_name, ap.status
+          FROM appointments ap JOIN agents ag ON ag.id = ap.agent_id
+          WHERE ap.scheduled_at >= ? AND ap.scheduled_at < ?
+          ORDER BY ap.scheduled_at, ap.id`,
+    args: [range.fromInclusive, range.toExclusive],
+  }));
 }
 
 export async function createFeedback(db: ClinicDatabase, input: FeedbackInput): Promise<number> {
