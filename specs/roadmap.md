@@ -97,6 +97,10 @@ At this point, visitors can submit dependable feedback without requiring client-
 - Include clinic site details in visitor notification previews and public About locations
 - Preserve clinic-wide staff permissions, cross-site therapist collision safety, privacy, accessibility, and responsive coverage
 
-## Deferred
+## Phase 11 — Timezone Coordination ✅
 
-- Timezone coordination
+- Add canonical UTC instants and IANA time zones while preserving existing site-local schedule values
+- Interpret therapist availability in the selected site's clock and reject daylight-saving gaps and overlaps
+- Make booking, collision checks, reminders, reports, and CSV exports independent of the server time zone
+- Show unambiguous site-local times throughout the clinic and progressively add visitor browser-local equivalents
+- Add atomic migration/backfill, DST, cross-server-time-zone, no-JavaScript, responsive, and production-browser coverage

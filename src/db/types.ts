@@ -9,6 +9,7 @@ export interface ClinicSite {
   slug: string;
   name: string;
   address: string;
+  time_zone: string;
   is_active: 0 | 1;
 }
 
@@ -43,7 +44,9 @@ export interface AppointmentRecord {
   site_slug: string;
   site_name: string;
   site_address: string;
+  site_time_zone: string;
   scheduled_at: string;
+  scheduled_at_utc: string;
   status: AppointmentStatus;
   notification_email?: string | null;
   notification_consent_at?: string | null;
@@ -56,10 +59,13 @@ export interface NotificationDelivery {
   event_kind: NotificationEventKind;
   recipient_email: string;
   scheduled_for: string;
+  scheduled_for_utc: string;
   attempt_count: number;
   agent_name: string;
   therapist_name: string;
   appointment_scheduled_at: string;
+  appointment_scheduled_at_utc: string;
+  site_time_zone: string;
   site_name: string;
   site_address: string;
 }
@@ -69,10 +75,12 @@ export interface AvailableSlot {
   therapist_id: number;
   therapist_name: string;
   scheduled_at: string;
+  scheduled_at_utc: string;
   site_id: number;
   site_slug: string;
   site_name: string;
   site_address: string;
+  site_time_zone: string;
 }
 
 export interface TherapistSlot extends AvailableSlot {
@@ -144,6 +152,8 @@ export interface AgentDemand {
 
 export interface ReportAppointmentRow {
   scheduled_at: string;
+  scheduled_at_utc: string;
+  site_time_zone: string;
   agent_name: string;
   therapist_name: string;
   site_name: string;

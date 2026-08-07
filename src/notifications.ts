@@ -55,9 +55,9 @@ function formatAppointment(value: string): string {
 
 export function renderNotification(notification: NotificationDelivery): NotificationMessage {
   const copy = eventCopy[notification.event_kind];
-  const appointment = `${notification.agent_name} with ${notification.therapist_name} on ${formatAppointment(notification.appointment_scheduled_at)}`;
+  const appointment = `${notification.agent_name} with ${notification.therapist_name} on ${formatAppointment(notification.appointment_scheduled_at)} (${notification.site_time_zone}; ${notification.appointment_scheduled_at_utc})`;
   const text = `${copy.heading}\n\n${copy.detail}\n\nAppointment: ${appointment}\nSite: ${notification.site_name}\nAddress: ${notification.site_address}\n\nContact the clinic if you need help.`;
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(copy.subject)}</title></head><body><main><h1>${escapeHtml(copy.heading)}</h1><p>${escapeHtml(copy.detail)}</p><dl><dt>Agent</dt><dd>${escapeHtml(notification.agent_name)}</dd><dt>Therapist</dt><dd>${escapeHtml(notification.therapist_name)}</dd><dt>When</dt><dd>${escapeHtml(formatAppointment(notification.appointment_scheduled_at))}</dd><dt>Site</dt><dd>${escapeHtml(notification.site_name)}</dd><dt>Address</dt><dd>${escapeHtml(notification.site_address)}</dd></dl><p>Contact the clinic if you need help.</p></main></body></html>`;
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(copy.subject)}</title></head><body><main><h1>${escapeHtml(copy.heading)}</h1><p>${escapeHtml(copy.detail)}</p><dl><dt>Agent</dt><dd>${escapeHtml(notification.agent_name)}</dd><dt>Therapist</dt><dd>${escapeHtml(notification.therapist_name)}</dd><dt>When</dt><dd>${escapeHtml(formatAppointment(notification.appointment_scheduled_at))} (${escapeHtml(notification.site_time_zone)})</dd><dt>UTC</dt><dd>${escapeHtml(notification.appointment_scheduled_at_utc)}</dd><dt>Site</dt><dd>${escapeHtml(notification.site_name)}</dd><dt>Address</dt><dd>${escapeHtml(notification.site_address)}</dd></dl><p>Contact the clinic if you need help.</p></main></body></html>`;
   return { subject: copy.subject, text, html };
 }
 

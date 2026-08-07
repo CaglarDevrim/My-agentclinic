@@ -5,6 +5,7 @@ import { createClient, type Client, type ResultSet } from "@libsql/client";
 import { migrateDatabase } from "./migrate.js";
 import { seedDatabase } from "./seed.js";
 import { normalizeNotificationEmail } from "../domain/notifications.js";
+import { addUtcMinutes, isValidTimeZone, localMinuteInZone, resolveLegacyLocalMinute, resolveLocalMinute, utcBoundaryForLocalDate, utcMinute } from "../domain/time.js";
 import type { AgentDemand, AgentDetail, AgentRecord, AilmentRecord, AilmentSummary, AppointmentRecord, AppointmentStatus, AvailableSlot, ClinicReport, ClinicReportTotals, ClinicSite, DashboardData, FeedbackInput, FeedbackRecord, NotificationDelivery, PublicReview, ReportAppointmentRow, ReportDateRange, ReviewModerationItem, TherapistSlot, TherapistSummary, TherapistWorkload, TherapyRecord, TherapySummary } from "./types.js";
 
 export type ClinicDatabase = Client;
@@ -44,6 +45,8 @@ export async function openDatabase(value: string | DatabaseConfig = ":memory:"):
   try {
     await db.execute("PRAGMA foreign_keys = ON");
     await migrateDatabase(db);
+    const configuredZones = await db.execute("SELECT time_zone FROM sites");
+    if (configuredZones.rows.some((row) => !isValidTimeZone(String(row.time_zone)))) throw new Error("The database contains an unsupported clinic site time zone.");
     await seedDatabase(db);
     return db;
   } catch (error) {
@@ -60,25 +63,20 @@ function firstAs<T>(result: ResultSet): T | undefined {
   return result.rows[0] as unknown as T | undefined;
 }
 
-function localMinute(value: Date): string {
-  const pad = (part: number) => String(part).padStart(2, "0");
-  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`;
-}
-
 export async function listAgents(db: ClinicDatabase): Promise<AgentRecord[]> {
   return rowsAs<AgentRecord>(await db.execute("SELECT id, name, model, status, description FROM agents ORDER BY name"));
 }
 
 export async function listActiveSites(db: ClinicDatabase): Promise<ClinicSite[]> {
-  return rowsAs<ClinicSite>(await db.execute("SELECT id, slug, name, address, is_active FROM sites WHERE is_active = 1 ORDER BY id"));
+  return rowsAs<ClinicSite>(await db.execute("SELECT id, slug, name, address, time_zone, is_active FROM sites WHERE is_active = 1 ORDER BY id"));
 }
 
 export async function findActiveSiteBySlug(db: ClinicDatabase, slug: string): Promise<ClinicSite | undefined> {
-  return firstAs<ClinicSite>(await db.execute({ sql: "SELECT id, slug, name, address, is_active FROM sites WHERE slug = ? AND is_active = 1", args: [slug] }));
+  return firstAs<ClinicSite>(await db.execute({ sql: "SELECT id, slug, name, address, time_zone, is_active FROM sites WHERE slug = ? AND is_active = 1", args: [slug] }));
 }
 
 export async function findActiveSiteById(db: ClinicDatabase, id: number): Promise<ClinicSite | undefined> {
-  return firstAs<ClinicSite>(await db.execute({ sql: "SELECT id, slug, name, address, is_active FROM sites WHERE id = ? AND is_active = 1", args: [id] }));
+  return firstAs<ClinicSite>(await db.execute({ sql: "SELECT id, slug, name, address, time_zone, is_active FROM sites WHERE id = ? AND is_active = 1", args: [id] }));
 }
 
 export async function findAgent(db: ClinicDatabase, id: number): Promise<AgentDetail | undefined> {
@@ -122,10 +120,10 @@ export type AppointmentTransitionResult = "updated" | "unchanged" | "not_found" 
 export type SlotCreationResult = "created" | "duplicate";
 export type SlotRemovalResult = "removed" | "not_found" | "occupied";
 
-async function hasOpenAppointmentSlot(db: ClinicDatabase, therapistName: string, scheduledAt: string): Promise<boolean> {
+async function hasOpenAppointmentSlot(db: ClinicDatabase, therapistName: string, scheduledAtUtc: string): Promise<boolean> {
   return Boolean(firstAs<{ id: number }>(await db.execute({
-    sql: "SELECT id FROM appointments WHERE lower(trim(therapist_name)) = lower(?) AND scheduled_at = ? AND status IN ('pending', 'confirmed') LIMIT 1",
-    args: [therapistName.trim(), scheduledAt],
+    sql: "SELECT id FROM appointments WHERE lower(trim(therapist_name)) = lower(?) AND scheduled_at_utc = ? AND status IN ('pending', 'confirmed') LIMIT 1",
+    args: [therapistName.trim(), scheduledAtUtc],
   })));
 }
 
@@ -137,63 +135,73 @@ function isSqliteConstraintError(error: unknown): boolean {
 
 export async function createAppointment(db: ClinicDatabase, input: { agentId: number; therapistName: string; scheduledAt: string }): Promise<AppointmentCreationResult> {
   const therapistName = input.therapistName.trim();
-  if (await hasOpenAppointmentSlot(db, therapistName, input.scheduledAt)) return { status: "conflict" };
+  const site = await findActiveSiteById(db, 1);
+  if (!site) throw new Error("The default clinic site is unavailable.");
+  const scheduledAtUtc = resolveLegacyLocalMinute(input.scheduledAt, site.time_zone);
+  if (await hasOpenAppointmentSlot(db, therapistName, scheduledAtUtc)) return { status: "conflict" };
 
   try {
-    const result = await db.execute({ sql: "INSERT INTO appointments (agent_id, therapist_name, scheduled_at, status) VALUES (?, ?, ?, 'pending')", args: [input.agentId, therapistName, input.scheduledAt] });
+    const result = await db.execute({ sql: "INSERT INTO appointments (agent_id, therapist_name, scheduled_at, scheduled_at_utc, site_id, status) VALUES (?, ?, ?, ?, ?, 'pending')", args: [input.agentId, therapistName, input.scheduledAt, scheduledAtUtc, site.id] });
     if (result.lastInsertRowid === undefined) throw new Error("Appointment insert did not return an ID.");
     return { status: "created", appointmentId: Number(result.lastInsertRowid) };
   } catch (error) {
-    if (isSqliteConstraintError(error) && await hasOpenAppointmentSlot(db, therapistName, input.scheduledAt)) return { status: "conflict" };
+    if (isSqliteConstraintError(error) && await hasOpenAppointmentSlot(db, therapistName, scheduledAtUtc)) return { status: "conflict" };
     throw error;
   }
 }
 
 export async function listAvailableSlots(db: ClinicDatabase, now: Date): Promise<AvailableSlot[]> {
   return rowsAs<AvailableSlot>(await db.execute({
-    sql: `SELECT s.id, s.therapist_id, t.display_name AS therapist_name, s.scheduled_at,
-                 site.id AS site_id, site.slug AS site_slug, site.name AS site_name, site.address AS site_address
+    sql: `SELECT s.id, s.therapist_id, t.display_name AS therapist_name, s.scheduled_at, s.scheduled_at_utc,
+                 site.id AS site_id, site.slug AS site_slug, site.name AS site_name, site.address AS site_address, site.time_zone AS site_time_zone
           FROM therapist_slots s JOIN therapists t ON t.id = s.therapist_id
           JOIN sites site ON site.id = s.site_id
-          WHERE s.is_active = 1 AND t.is_active = 1 AND site.is_active = 1 AND s.scheduled_at > ?
+          WHERE s.is_active = 1 AND t.is_active = 1 AND site.is_active = 1 AND s.scheduled_at_utc > ?
             AND NOT EXISTS (
               SELECT 1 FROM appointments a
               WHERE a.slot_id = s.id AND a.status IN ('pending', 'confirmed')
             )
-          ORDER BY s.scheduled_at, t.display_name, s.id`,
-    args: [localMinute(now)],
+          ORDER BY s.scheduled_at_utc, t.display_name, s.id`,
+    args: [utcMinute(now)],
   }));
 }
 
 export async function createAppointmentFromSlot(db: ClinicDatabase, input: { agentId: number; slotId: number; now: Date; notificationEmail?: string }): Promise<AppointmentCreationResult> {
   try {
-    const currentMinute = localMinute(input.now);
+    const slot = firstAs<{ scheduled_at: string; scheduled_at_utc: string; time_zone: string }>(await db.execute({
+      sql: "SELECT s.scheduled_at, s.scheduled_at_utc, site.time_zone FROM therapist_slots s JOIN sites site ON site.id = s.site_id WHERE s.id = ?",
+      args: [input.slotId],
+    }));
+    if (!slot) return { status: "conflict" };
+    const currentUtc = utcMinute(input.now);
+    const currentLocal = localMinuteInZone(input.now, slot.time_zone);
+    const reminderUtc = addUtcMinutes(slot.scheduled_at_utc, -24 * 60);
+    const reminderLocal = localMinuteInZone(new Date(reminderUtc), slot.time_zone);
     const notificationEmail = input.notificationEmail ? normalizeNotificationEmail(input.notificationEmail) : undefined;
     const results = await db.batch([{
-      sql: `INSERT INTO appointments (agent_id, therapist_name, scheduled_at, status, therapist_id, slot_id, notification_email, notification_consent_at, site_id)
-            SELECT ?, t.display_name, s.scheduled_at, 'pending', s.therapist_id, s.id, ?, ?, s.site_id
+      sql: `INSERT INTO appointments (agent_id, therapist_name, scheduled_at, scheduled_at_utc, status, therapist_id, slot_id, notification_email, notification_consent_at, site_id)
+            SELECT ?, t.display_name, s.scheduled_at, s.scheduled_at_utc, 'pending', s.therapist_id, s.id, ?, ?, s.site_id
             FROM therapist_slots s JOIN therapists t ON t.id = s.therapist_id
             JOIN sites site ON site.id = s.site_id
-            WHERE s.id = ? AND s.is_active = 1 AND t.is_active = 1 AND site.is_active = 1 AND s.scheduled_at > ?
+            WHERE s.id = ? AND s.is_active = 1 AND t.is_active = 1 AND site.is_active = 1 AND s.scheduled_at_utc > ?
               AND NOT EXISTS (
                 SELECT 1 FROM appointments a
                 WHERE a.slot_id = s.id AND a.status IN ('pending', 'confirmed')
               )`,
-      args: [input.agentId, notificationEmail ?? null, notificationEmail ? currentMinute : null, input.slotId, currentMinute],
+      args: [input.agentId, notificationEmail ?? null, notificationEmail ? currentUtc : null, input.slotId, currentUtc],
     }, {
-      sql: `INSERT INTO notification_outbox (appointment_id, event_kind, recipient_email, scheduled_for)
-            SELECT ap.id, 'appointment_created', ap.notification_email, ?
+      sql: `INSERT INTO notification_outbox (appointment_id, event_kind, recipient_email, scheduled_for, scheduled_for_utc)
+            SELECT ap.id, 'appointment_created', ap.notification_email, ?, ?
             FROM appointments ap
             WHERE ap.slot_id = ? AND ap.status = 'pending' AND ap.notification_consent_at = ?
               AND ap.notification_email = ? AND changes() = 1
             UNION ALL
-            SELECT ap.id, 'appointment_reminder_24h', ap.notification_email,
-                   strftime('%Y-%m-%dT%H:%M', ap.scheduled_at, '-24 hours')
+            SELECT ap.id, 'appointment_reminder_24h', ap.notification_email, ?, ?
             FROM appointments ap
             WHERE ap.slot_id = ? AND ap.status = 'pending' AND ap.notification_consent_at = ?
               AND ap.notification_email = ? AND changes() = 1
-              AND julianday(ap.scheduled_at) - julianday(?) > 1`,
-      args: [currentMinute, input.slotId, currentMinute, notificationEmail ?? null, input.slotId, currentMinute, notificationEmail ?? null, currentMinute],
+              AND ap.scheduled_at_utc > ?`,
+      args: [currentLocal, currentUtc, input.slotId, currentUtc, notificationEmail ?? null, reminderLocal, reminderUtc, input.slotId, currentUtc, notificationEmail ?? null, addUtcMinutes(currentUtc, 24 * 60)],
     }], "write");
     const result = results[0];
     if (result.rowsAffected === 0 || result.lastInsertRowid === undefined) return { status: "conflict" };
@@ -207,9 +215,19 @@ export async function createAppointmentFromSlot(db: ClinicDatabase, input: { age
 
 export async function findAppointment(db: ClinicDatabase, agentId: number, appointmentId: number): Promise<AppointmentRecord | undefined> {
   return firstAs<AppointmentRecord>(await db.execute({ sql: `SELECT ap.id, ap.agent_id, ag.name AS agent_name, ap.therapist_name, ap.therapist_id, ap.slot_id,
-    ap.site_id, site.slug AS site_slug, site.name AS site_name, site.address AS site_address, ap.scheduled_at, ap.status, ap.created_at
+    ap.site_id, site.slug AS site_slug, site.name AS site_name, site.address AS site_address, site.time_zone AS site_time_zone,
+    ap.scheduled_at, ap.scheduled_at_utc, ap.status, ap.created_at
     FROM appointments ap JOIN agents ag ON ag.id = ap.agent_id JOIN sites site ON site.id = ap.site_id
     WHERE ap.agent_id = ? AND ap.id = ?`, args: [agentId, appointmentId] }));
+}
+
+async function notificationDueValues(db: ClinicDatabase, appointmentId: number, now: Date): Promise<{ local: string; utc: string }> {
+  const row = firstAs<{ time_zone: string }>(await db.execute({
+    sql: "SELECT site.time_zone FROM appointments ap JOIN sites site ON site.id = ap.site_id WHERE ap.id = ?",
+    args: [appointmentId],
+  }));
+  const utc = utcMinute(now);
+  return { local: row ? localMinuteInZone(now, row.time_zone) : utc.slice(0, -1), utc };
 }
 
 async function findAppointmentStatus(db: Pick<ClinicDatabase, "execute">, appointmentId: number): Promise<AppointmentStatus | undefined> {
@@ -220,14 +238,15 @@ async function findAppointmentStatus(db: Pick<ClinicDatabase, "execute">, appoin
 }
 
 export async function confirmAppointment(db: ClinicDatabase, appointmentId: number, therapistId?: number, now = new Date()): Promise<AppointmentTransitionResult> {
+  const due = await notificationDueValues(db, appointmentId, now);
   const results = await db.batch([{
     sql: "UPDATE appointments SET status = 'confirmed' WHERE id = ? AND status = 'pending' AND (? IS NULL OR therapist_id = ?)",
     args: [appointmentId, therapistId ?? null, therapistId ?? null],
   }, {
-    sql: `INSERT OR IGNORE INTO notification_outbox (appointment_id, event_kind, recipient_email, scheduled_for)
-          SELECT id, 'appointment_confirmed', notification_email, ? FROM appointments
+    sql: `INSERT OR IGNORE INTO notification_outbox (appointment_id, event_kind, recipient_email, scheduled_for, scheduled_for_utc)
+          SELECT id, 'appointment_confirmed', notification_email, ?, ? FROM appointments
           WHERE id = ? AND changes() = 1 AND notification_email IS NOT NULL AND notification_consent_at IS NOT NULL`,
-    args: [localMinute(now), appointmentId],
+    args: [due.local, due.utc, appointmentId],
   }], "write");
   if (results[0].rowsAffected > 0) return "updated";
   const status = await findAppointmentStatusForScope(db, appointmentId, therapistId);
@@ -236,14 +255,15 @@ export async function confirmAppointment(db: ClinicDatabase, appointmentId: numb
 }
 
 export async function cancelAppointment(db: ClinicDatabase, appointmentId: number, therapistId?: number, now = new Date()): Promise<AppointmentTransitionResult> {
+  const due = await notificationDueValues(db, appointmentId, now);
   const results = await db.batch([{
       sql: "UPDATE appointments SET status = 'cancelled' WHERE id = ? AND status IN ('pending', 'confirmed') AND (? IS NULL OR therapist_id = ?)",
       args: [appointmentId, therapistId ?? null, therapistId ?? null],
   }, {
-    sql: `INSERT OR IGNORE INTO notification_outbox (appointment_id, event_kind, recipient_email, scheduled_for)
-          SELECT id, 'appointment_cancelled', notification_email, ? FROM appointments
+    sql: `INSERT OR IGNORE INTO notification_outbox (appointment_id, event_kind, recipient_email, scheduled_for, scheduled_for_utc)
+          SELECT id, 'appointment_cancelled', notification_email, ?, ? FROM appointments
           WHERE id = ? AND changes() = 1 AND notification_email IS NOT NULL AND notification_consent_at IS NOT NULL`,
-    args: [localMinute(now), appointmentId],
+    args: [due.local, due.utc, appointmentId],
   }, {
     sql: `UPDATE notification_outbox SET state = 'suppressed'
           WHERE appointment_id = ? AND event_kind = 'appointment_reminder_24h'
@@ -275,9 +295,9 @@ export async function prepareNotificationRun(db: ClinicDatabase, now: Date): Pro
             AND EXISTS (
               SELECT 1 FROM appointments ap
               WHERE ap.id = notification_outbox.appointment_id
-                AND (ap.status = 'cancelled' OR ap.scheduled_at <= ?)
+                AND (ap.status = 'cancelled' OR ap.scheduled_at_utc <= ?)
             )`,
-    args: [localMinute(now)],
+    args: [utcMinute(now)],
   }], "write");
 }
 
@@ -287,17 +307,18 @@ export async function claimNextDueNotification(db: ClinicDatabase, now: Date): P
           SET state = 'processing', attempt_count = attempt_count + 1, last_error = NULL
           WHERE id = (
             SELECT n.id FROM notification_outbox n JOIN appointments ap ON ap.id = n.appointment_id
-            WHERE n.state = 'pending' AND n.scheduled_for <= ?
-              AND (n.event_kind <> 'appointment_reminder_24h' OR (ap.status IN ('pending', 'confirmed') AND ap.scheduled_at > ?))
-            ORDER BY n.scheduled_for, n.id LIMIT 1
+            WHERE n.state = 'pending' AND n.scheduled_for_utc <= ?
+              AND (n.event_kind <> 'appointment_reminder_24h' OR (ap.status IN ('pending', 'confirmed') AND ap.scheduled_at_utc > ?))
+            ORDER BY n.scheduled_for_utc, n.id LIMIT 1
           ) AND state = 'pending'
           RETURNING id`,
-    args: [localMinute(now), localMinute(now)],
+    args: [utcMinute(now), utcMinute(now)],
   }));
   if (!claimed) return undefined;
   return firstAs<NotificationDelivery>(await db.execute({
-    sql: `SELECT n.id, n.appointment_id, n.event_kind, n.recipient_email, n.scheduled_for, n.attempt_count,
+    sql: `SELECT n.id, n.appointment_id, n.event_kind, n.recipient_email, n.scheduled_for, n.scheduled_for_utc, n.attempt_count,
                  ag.name AS agent_name, ap.therapist_name, ap.scheduled_at AS appointment_scheduled_at,
+                 ap.scheduled_at_utc AS appointment_scheduled_at_utc, site.time_zone AS site_time_zone,
                  site.name AS site_name, site.address AS site_address
           FROM notification_outbox n
           JOIN appointments ap ON ap.id = n.appointment_id
@@ -311,7 +332,7 @@ export async function claimNextDueNotification(db: ClinicDatabase, now: Date): P
 export async function completeNotification(db: ClinicDatabase, notificationId: number, now: Date): Promise<void> {
   await db.execute({
     sql: "UPDATE notification_outbox SET state = 'processed', processed_at = ?, last_error = NULL WHERE id = ? AND state = 'processing'",
-    args: [localMinute(now), notificationId],
+    args: [utcMinute(now), notificationId],
   });
 }
 
@@ -325,36 +346,38 @@ export async function failNotification(db: ClinicDatabase, notificationId: numbe
 export async function listTherapists(db: ClinicDatabase, now: Date): Promise<TherapistSummary[]> {
   return rowsAs<TherapistSummary>(await db.execute({
     sql: `SELECT t.id, t.display_name, t.is_active, u.email AS account_email,
-                 COUNT(CASE WHEN s.is_active = 1 AND s.scheduled_at > ? THEN 1 END) AS upcoming_slots
+                 COUNT(CASE WHEN s.is_active = 1 AND s.scheduled_at_utc > ? THEN 1 END) AS upcoming_slots
           FROM therapists t LEFT JOIN staff_users u ON u.id = t.staff_user_id
           LEFT JOIN therapist_slots s ON s.therapist_id = t.id
           GROUP BY t.id ORDER BY t.display_name`,
-    args: [localMinute(now)],
+    args: [utcMinute(now)],
   }));
 }
 
 export async function listTherapistSlots(db: ClinicDatabase, therapistId: number, now: Date): Promise<TherapistSlot[]> {
   return rowsAs<TherapistSlot>(await db.execute({
-    sql: `SELECT s.id, s.therapist_id, t.display_name AS therapist_name, s.scheduled_at, s.is_active,
-                 site.id AS site_id, site.slug AS site_slug, site.name AS site_name, site.address AS site_address,
+    sql: `SELECT s.id, s.therapist_id, t.display_name AS therapist_name, s.scheduled_at, s.scheduled_at_utc, s.is_active,
+                 site.id AS site_id, site.slug AS site_slug, site.name AS site_name, site.address AS site_address, site.time_zone AS site_time_zone,
                  CASE WHEN EXISTS (
                    SELECT 1 FROM appointments a WHERE a.slot_id = s.id AND a.status IN ('pending', 'confirmed')
                  ) THEN 1 ELSE 0 END AS is_occupied
           FROM therapist_slots s JOIN therapists t ON t.id = s.therapist_id JOIN sites site ON site.id = s.site_id
-          WHERE s.therapist_id = ? AND s.is_active = 1 AND s.scheduled_at > ?
-          ORDER BY s.scheduled_at, s.id`,
-    args: [therapistId, localMinute(now)],
+          WHERE s.therapist_id = ? AND s.is_active = 1 AND s.scheduled_at_utc > ?
+          ORDER BY s.scheduled_at_utc, s.id`,
+    args: [therapistId, utcMinute(now)],
   }));
 }
 
 export async function createTherapistSlot(db: ClinicDatabase, therapistId: number, scheduledAt: string, siteId = 1): Promise<SlotCreationResult> {
   try {
-    await db.execute({
-      sql: "INSERT INTO therapist_slots (therapist_id, scheduled_at, site_id) SELECT ?, ?, id FROM sites WHERE id = ? AND is_active = 1",
-      args: [therapistId, scheduledAt, siteId],
-    });
     const site = await findActiveSiteById(db, siteId);
     if (!site) return "duplicate";
+    const resolved = resolveLocalMinute(scheduledAt, site.time_zone);
+    if (resolved.status !== "valid") return "duplicate";
+    await db.execute({
+      sql: "INSERT INTO therapist_slots (therapist_id, scheduled_at, scheduled_at_utc, site_id) SELECT ?, ?, ?, id FROM sites WHERE id = ? AND is_active = 1",
+      args: [therapistId, scheduledAt, resolved.utc, siteId],
+    });
     return "created";
   } catch (error) {
     if (isSqliteConstraintError(error)) return "duplicate";
@@ -368,8 +391,8 @@ export async function removeTherapistSlot(db: ClinicDatabase, therapistId: numbe
                    SELECT 1 FROM appointments a WHERE a.slot_id = s.id AND a.status IN ('pending', 'confirmed')
                  ) THEN 1 ELSE 0 END AS is_occupied
           FROM therapist_slots s
-          WHERE s.id = ? AND s.therapist_id = ? AND s.is_active = 1 AND s.scheduled_at > ?`,
-    args: [slotId, therapistId, localMinute(now)],
+          WHERE s.id = ? AND s.therapist_id = ? AND s.is_active = 1 AND s.scheduled_at_utc > ?`,
+    args: [slotId, therapistId, utcMinute(now)],
   }));
   if (!slot) return "not_found";
   if (slot.is_occupied === 1) return "occupied";
@@ -383,11 +406,11 @@ export async function removeTherapistSlot(db: ClinicDatabase, therapistId: numbe
 export async function listTherapistAppointments(db: ClinicDatabase, therapistId: number): Promise<AppointmentRecord[]> {
   return rowsAs<AppointmentRecord>(await db.execute({
     sql: `SELECT ap.id, ap.agent_id, ag.name AS agent_name, ap.therapist_name, ap.therapist_id, ap.slot_id,
-                 ap.site_id, site.slug AS site_slug, site.name AS site_name, site.address AS site_address,
-                 ap.scheduled_at, ap.status, ap.created_at
+                 ap.site_id, site.slug AS site_slug, site.name AS site_name, site.address AS site_address, site.time_zone AS site_time_zone,
+                 ap.scheduled_at, ap.scheduled_at_utc, ap.status, ap.created_at
           FROM appointments ap JOIN agents ag ON ag.id = ap.agent_id JOIN sites site ON site.id = ap.site_id
           WHERE ap.therapist_id = ? AND ap.status IN ('pending', 'confirmed')
-          ORDER BY ap.scheduled_at, ap.id`,
+          ORDER BY ap.scheduled_at_utc, ap.id`,
     args: [therapistId],
   }));
 }
@@ -397,9 +420,10 @@ export async function getDashboard(db: ClinicDatabase, siteId?: number): Promise
   const [agents, appointmentsResult, ailmentsResult, agentCount, appointmentCount, ailmentCount, pendingReviewCount] = await Promise.all([
     listAgents(db),
     db.execute({ sql: `SELECT ap.id, ap.agent_id, ag.name AS agent_name, ap.therapist_name, ap.therapist_id, ap.slot_id,
-      ap.site_id, site.slug AS site_slug, site.name AS site_name, site.address AS site_address, ap.scheduled_at, ap.status, ap.created_at
+      ap.site_id, site.slug AS site_slug, site.name AS site_name, site.address AS site_address, site.time_zone AS site_time_zone,
+      ap.scheduled_at, ap.scheduled_at_utc, ap.status, ap.created_at
       FROM appointments ap JOIN agents ag ON ag.id = ap.agent_id JOIN sites site ON site.id = ap.site_id
-      WHERE ap.status IN ('pending', 'confirmed') AND (? IS NULL OR ap.site_id = ?) ORDER BY ap.scheduled_at, ap.id`, args: siteArgs }),
+      WHERE ap.status IN ('pending', 'confirmed') AND (? IS NULL OR ap.site_id = ?) ORDER BY ap.scheduled_at_utc, ap.id`, args: siteArgs }),
     db.execute("SELECT a.id, a.name, a.description, COUNT(aa.agent_id) AS agent_count FROM ailments a LEFT JOIN agent_ailments aa ON aa.ailment_id = a.id GROUP BY a.id ORDER BY a.name"),
     db.execute("SELECT COUNT(*) AS count FROM agents"),
     db.execute({ sql: "SELECT COUNT(*) AS count FROM appointments WHERE status IN ('pending', 'confirmed') AND (? IS NULL OR site_id = ?)", args: siteArgs }),
@@ -419,27 +443,28 @@ export async function getDashboard(db: ClinicDatabase, siteId?: number): Promise
 }
 
 export async function getClinicReport(db: ClinicDatabase, range: ReportDateRange, siteId?: number): Promise<ClinicReport> {
-  const args = [range.fromInclusive, range.toExclusive, siteId ?? null, siteId ?? null];
+  const { sql: predicate, args } = await reportUtcPredicate(db, range, siteId, "appointments");
+  const agentPredicate = predicate.replaceAll("appointments.", "ap.");
   const [totalsResult, therapistResult, agentResult] = await db.batch([{
     sql: `SELECT COUNT(*) AS total,
                  SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
                  SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) AS confirmed,
                  SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled
-          FROM appointments WHERE scheduled_at >= ? AND scheduled_at < ? AND (? IS NULL OR site_id = ?)`,
+          FROM appointments WHERE ${predicate}`,
     args,
   }, {
     sql: `SELECT therapist_name, COUNT(*) AS total,
                  SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
                  SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) AS confirmed,
                  SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled
-          FROM appointments WHERE scheduled_at >= ? AND scheduled_at < ? AND (? IS NULL OR site_id = ?)
+          FROM appointments WHERE ${predicate}
           GROUP BY therapist_name
           ORDER BY total DESC, lower(therapist_name), therapist_name`,
     args,
   }, {
     sql: `SELECT ag.id AS agent_id, ag.name AS agent_name, COUNT(*) AS total
           FROM appointments ap JOIN agents ag ON ag.id = ap.agent_id
-          WHERE ap.scheduled_at >= ? AND ap.scheduled_at < ? AND (? IS NULL OR ap.site_id = ?)
+          WHERE ${agentPredicate}
           GROUP BY ag.id, ag.name
           ORDER BY total DESC, lower(ag.name), ag.name, ag.id`,
     args,
@@ -460,13 +485,30 @@ export async function getClinicReport(db: ClinicDatabase, range: ReportDateRange
 }
 
 export async function listReportAppointments(db: ClinicDatabase, range: ReportDateRange, siteId?: number): Promise<ReportAppointmentRow[]> {
+  const { sql: predicate, args } = await reportUtcPredicate(db, range, siteId, "ap");
   return rowsAs<ReportAppointmentRow>(await db.execute({
-    sql: `SELECT ap.scheduled_at, ag.name AS agent_name, ap.therapist_name, site.name AS site_name, ap.status
+    sql: `SELECT ap.scheduled_at, ap.scheduled_at_utc, site.time_zone AS site_time_zone,
+                 ag.name AS agent_name, ap.therapist_name, site.name AS site_name, ap.status
           FROM appointments ap JOIN agents ag ON ag.id = ap.agent_id JOIN sites site ON site.id = ap.site_id
-          WHERE ap.scheduled_at >= ? AND ap.scheduled_at < ? AND (? IS NULL OR ap.site_id = ?)
-          ORDER BY ap.scheduled_at, ap.id`,
-    args: [range.fromInclusive, range.toExclusive, siteId ?? null, siteId ?? null],
+          WHERE ${predicate}
+          ORDER BY ap.scheduled_at_utc, ap.id`,
+    args,
   }));
+}
+
+async function reportUtcPredicate(db: ClinicDatabase, range: ReportDateRange, siteId: number | undefined, alias: string): Promise<{ sql: string; args: Array<string | number> }> {
+  const sites = rowsAs<Pick<ClinicSite, "id" | "time_zone">>(await db.execute({
+    sql: "SELECT id, time_zone FROM sites WHERE is_active = 1 AND (? IS NULL OR id = ?) ORDER BY id",
+    args: [siteId ?? null, siteId ?? null],
+  }));
+  if (sites.length === 0) return { sql: "0", args: [] };
+  const clauses: string[] = [];
+  const args: Array<string | number> = [];
+  for (const site of sites) {
+    clauses.push(`(${alias}.site_id = ? AND ${alias}.scheduled_at_utc >= ? AND ${alias}.scheduled_at_utc < ?)`);
+    args.push(site.id, utcBoundaryForLocalDate(range.from, site.time_zone), utcBoundaryForLocalDate(range.toExclusive.slice(0, 10), site.time_zone));
+  }
+  return { sql: `(${clauses.join(" OR ")})`, args };
 }
 
 export async function createFeedback(db: ClinicDatabase, input: FeedbackInput): Promise<number> {

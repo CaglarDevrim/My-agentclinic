@@ -40,7 +40,7 @@ export function ClinicReportPage({ report, values, errors = {}, staff, sites, se
         </select>
         <p class="field-hint" id="report-site-hint">Choose one site or include the whole clinic.</p>
         {siteError && <p class="field-error" id="site-error">{siteError}</p>}
-        <p class="field-hint" id="report-range-hint">Scheduled dates are inclusive and use the clinic's local calendar. Maximum 366 days.</p>
+        <p class="field-hint" id="report-range-hint">Scheduled dates are inclusive and use the selected site's local calendar, or each site's own calendar for All sites. Maximum 366 days.</p>
         <p class="page-actions report-actions">
           <button class="button" type="submit">Apply filters</button>
           {csvHref && <a class="button button--secondary" href={csvHref} download>Download CSV</a>}

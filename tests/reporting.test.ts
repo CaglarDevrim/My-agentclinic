@@ -36,9 +36,9 @@ describe("clinic operations reporting", () => {
   it("aggregates status, therapist workload, agent demand, and inclusive boundaries", async () => {
     const db = await openDatabase();
     try {
-      await db.execute("INSERT INTO appointments (agent_id, therapist_name, scheduled_at, status) VALUES (1, 'Dr Boundary', '2099-04-01T00:00', 'pending')");
-      await db.execute("INSERT INTO appointments (agent_id, therapist_name, scheduled_at, status) VALUES (2, 'Dr Boundary', '2099-04-30T23:59', 'confirmed')");
-      await db.execute("INSERT INTO appointments (agent_id, therapist_name, scheduled_at, status) VALUES (3, 'Dr Excluded', '2099-05-01T00:00', 'cancelled')");
+      await db.execute("INSERT INTO appointments (agent_id, therapist_name, scheduled_at, scheduled_at_utc, status) VALUES (1, 'Dr Boundary', '2099-04-01T00:00', '2099-04-01T07:00Z', 'pending')");
+      await db.execute("INSERT INTO appointments (agent_id, therapist_name, scheduled_at, scheduled_at_utc, status) VALUES (2, 'Dr Boundary', '2099-04-30T23:59', '2099-05-01T06:59Z', 'confirmed')");
+      await db.execute("INSERT INTO appointments (agent_id, therapist_name, scheduled_at, scheduled_at_utc, status) VALUES (3, 'Dr Excluded', '2099-05-01T00:00', '2099-05-01T07:00Z', 'cancelled')");
       const reportRange = range("2099-04-01", "2099-04-30");
       const report = await getClinicReport(db, reportRange);
       expect(report.totals).toEqual({ total: 2, pending: 1, confirmed: 1, cancelled: 0 });
@@ -63,10 +63,10 @@ describe("clinic operations reporting", () => {
       });
       const reportRange = range("2099-01-01", "2099-01-31");
       const csv = serializeAppointmentReportCsv(await listReportAppointments(db, reportRange));
-      expect(csv).toBe("Scheduled at,Agent,Therapist,Site,Status\r\n2099-01-15T10:00,\"'=HYPERLINK(\"\"https://evil.example\"\")\",\"Dr, \"\"Quoted\"\"\",Context Window Clinic,confirmed\r\n");
+      expect(csv).toBe("Scheduled at,Time zone,Scheduled at UTC,Agent,Therapist,Site,Status\r\n2099-01-15T10:00,America/Los_Angeles,2099-01-15T18:00Z,\"'=HYPERLINK(\"\"https://evil.example\"\")\",\"Dr, \"\"Quoted\"\"\",Context Window Clinic,confirmed\r\n");
       expect(csv).not.toContain("private@example.com");
       expect(reportCsvFilename(reportRange)).toBe("agentclinic-appointments-2099-01-01-to-2099-01-31-all-sites.csv");
-      expect(serializeAppointmentReportCsv([])).toBe("Scheduled at,Agent,Therapist,Site,Status\r\n");
+      expect(serializeAppointmentReportCsv([])).toBe("Scheduled at,Time zone,Scheduled at UTC,Agent,Therapist,Site,Status\r\n");
     } finally {
       db.close();
     }

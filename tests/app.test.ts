@@ -142,7 +142,7 @@ describe("AgentClinic routes", () => {
 
   it("persists a valid appointment with PRG and renders confirmation", async () => {
     const therapist = await database.execute({ sql: "INSERT INTO therapists (normalized_name, display_name) VALUES (?, ?)", args: ["dr test <script>", "Dr Test <script>"] });
-    const slot = await database.execute({ sql: "INSERT INTO therapist_slots (therapist_id, scheduled_at) VALUES (?, ?)", args: [Number(therapist.lastInsertRowid), "2099-12-20T10:30"] });
+    const slot = await database.execute({ sql: "INSERT INTO therapist_slots (therapist_id, scheduled_at, scheduled_at_utc) VALUES (?, ?, ?)", args: [Number(therapist.lastInsertRowid), "2099-12-20T10:30", "2099-12-20T18:30Z"] });
     const response = await app.request("/agents/1/appointments", { method: "POST", body: appointmentForm(String(slot.lastInsertRowid)) });
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe("/agents/1/appointments/4");

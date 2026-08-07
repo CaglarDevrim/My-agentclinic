@@ -15,7 +15,7 @@ const TEST_PASSWORD = "Therapist test password 2026!";
 describe("therapist accounts and schedules", () => {
   let db!: ClinicDatabase;
   let passwordHash = "";
-  const now = new Date("2026-08-04T10:00:00");
+  const now = new Date("2026-08-04T17:00:00Z");
 
   beforeAll(async () => {
     passwordHash = await hashStaffPassword(TEST_PASSWORD);
@@ -40,7 +40,7 @@ describe("therapist accounts and schedules", () => {
   it("books one authoritative slot and releases it after cancellation", async () => {
     db = await openDatabase();
     const therapistId = Number((await db.execute("SELECT id FROM therapists ORDER BY id LIMIT 1")).rows[0].id);
-    await db.execute({ sql: "INSERT INTO therapist_slots (therapist_id, scheduled_at) VALUES (?, ?)", args: [therapistId, "2026-08-04T09:30"] });
+    await db.execute({ sql: "INSERT INTO therapist_slots (therapist_id, scheduled_at, scheduled_at_utc) VALUES (?, ?, ?)", args: [therapistId, "2026-08-04T09:30", "2026-08-04T16:30Z"] });
     expect((await listAvailableSlots(db, now)).some((slot) => slot.scheduled_at === "2026-08-04T09:30")).toBe(false);
     const slot = (await listAvailableSlots(db, now))[0];
     expect(slot).toBeDefined();
@@ -88,6 +88,13 @@ describe("therapist accounts and schedules", () => {
     expect(scheduleHtml).toContain("Context Window Clinic");
     expect(scheduleHtml).toContain("Available");
 
+    const springGap = await request("/dashboard/schedule/slots", { method: "POST", body: new URLSearchParams({ siteId: "1", scheduledAt: "2026-03-08T02:30" }) });
+    expect(springGap.status).toBe(422);
+    expect(await springGap.text()).toContain("does not exist because the clock moves forward");
+    const autumnOverlap = await request("/dashboard/schedule/slots", { method: "POST", body: new URLSearchParams({ siteId: "1", scheduledAt: "2026-11-01T01:30" }) });
+    expect(autumnOverlap.status).toBe(422);
+    expect(await autumnOverlap.text()).toContain("occurs twice because the clock moves back");
+
     const crossSiteCollision = await request("/dashboard/schedule/slots", { method: "POST", body: new URLSearchParams({ siteId: "2", scheduledAt: "2099-08-20T11:15" }) });
     expect(crossSiteCollision.status).toBe(422);
     expect(await crossSiteCollision.text()).toContain("including at another site");
@@ -100,7 +107,7 @@ describe("therapist accounts and schedules", () => {
 
     const other = await createTherapistUser(db, { email: "other@example.com", displayName: "Dr Other", passwordHash });
     const otherAppointment = await db.execute({
-      sql: "INSERT INTO appointments (agent_id, therapist_name, scheduled_at, status, therapist_id) VALUES (2, 'Dr Other', '2099-09-01T10:00', 'pending', ?)",
+      sql: "INSERT INTO appointments (agent_id, therapist_name, scheduled_at, scheduled_at_utc, status, therapist_id) VALUES (2, 'Dr Other', '2099-09-01T10:00', '2099-09-01T17:00Z', 'pending', ?)",
       args: [other.therapistId],
     });
     expect((await request(`/dashboard/appointments/${otherAppointment.lastInsertRowid}/confirm`, { method: "POST" })).status).toBe(404);
