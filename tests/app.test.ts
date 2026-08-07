@@ -277,7 +277,7 @@ describe("AgentClinic routes", () => {
     expect(css).not.toContain(".search-form");
   });
 
-  it("renders a semantic, privacy-safe About page with a fixed external map link", async () => {
+  it("renders a semantic About page with a consent-gated interactive map", async () => {
     const response = await app.request("/about");
     const html = await response.text();
     const mapUrl = "https://www.openstreetmap.org/search?query=42%20Context%20Window%20Way%2C%20San%20Francisco%2C%20CA%2094107";
@@ -294,14 +294,34 @@ describe("AgentClinic routes", () => {
     expect(html).toContain("<address>42 Context Window Way, San Francisco, CA 94107</address>");
     expect(html).toContain(`href="${mapUrl}" target="_blank" rel="noopener noreferrer"`);
     expect(html).toContain("Open 42 Context Window Way in OpenStreetMap (opens in a new tab)");
+    expect(html).toContain("Loading the interactive map contacts OpenStreetMap and may share your IP address and browser information with the provider.");
+    expect(html).toMatch(/<button[^>]+data-map-load="true"[^>]+aria-controls="about-map-frame"[^>]+aria-describedby="about-map-privacy"/);
+    expect(html).toMatch(/<div[^>]+data-map-region="true"><\/div>/);
+    expect(html).toContain('<script src="/static/about-map.js" defer=""></script>');
     expect(html).toMatch(/href="\/about" aria-current="page"/);
     expect(html).toContain('<nav aria-label="Footer navigation"><a href="/feedback">Feedback</a><a href="/reviews">Customer Reviews</a></nav>');
-    expect(html).not.toMatch(/<(?:iframe|script|form)\b/i);
+    expect(html).not.toMatch(/<(?:iframe|form)\b/i);
+    expect(html).not.toMatch(/<script[^>]+src="https?:/i);
+    expect(html).not.toMatch(/<(?:link)[^>]+rel="(?:preload|preconnect|prefetch)"/i);
     expect(html).not.toMatch(/(?:api[_-]?key|geolocation|mapbox|googleapis|tile\.openstreetmap)/i);
 
     const post = await app.request("/about", { method: "POST" });
     expect(post.status).toBe(404);
     expect(await post.text()).toContain("Page not found");
+  });
+
+  it("serves a dependency-free and fixed-value About map enhancement", async () => {
+    const response = await app.request("/static/about-map.js");
+    const script = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toMatch(/(?:java|ecma)script/);
+    expect(script).toContain("https://www.openstreetmap.org/export/embed.html?");
+    expect(script).toContain("marker=37.7765%2C-122.3950");
+    expect(script).toContain('document.createElement("iframe")');
+    expect(script).toContain('frame.referrerPolicy = "no-referrer"');
+    expect(script).toContain('frame.loading = "lazy"');
+    expect(script).not.toMatch(/(?:localStorage|sessionStorage|document\.cookie|geolocation|fetch\(|innerHTML)/);
   });
 
   it("renders the feedback form and site-wide footer entry", async () => {

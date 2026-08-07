@@ -781,6 +781,11 @@ tbody th {
   border-radius: 0.4rem;
 }
 
+.about-location__details,
+.about-map {
+  min-width: 0;
+}
+
 .about-location address {
   margin-top: 1rem;
   font-size: 1rem;
@@ -796,6 +801,63 @@ tbody th {
   min-height: 2.75rem;
   text-align: left;
   overflow-wrap: anywhere;
+}
+
+.about-map {
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+}
+
+.about-map .about-map-privacy,
+.about-map-status {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.about-map-load {
+  width: fit-content;
+  max-width: 100%;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.about-map-load[hidden] {
+  display: none;
+}
+
+.about-map-load[aria-disabled="true"] {
+  color: var(--text);
+  background: var(--surface-strong);
+  border-color: var(--border);
+  cursor: default;
+}
+
+.about-map-status:empty,
+.about-map-frame:empty {
+  display: none;
+}
+
+.about-map-status {
+  color: var(--success);
+  line-height: 1.5;
+}
+
+.about-map-frame {
+  width: 100%;
+  min-height: 13rem;
+  overflow: hidden;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  aspect-ratio: 4 / 3;
+}
+
+.about-map-frame iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
 }
 
 .empty-row td {
