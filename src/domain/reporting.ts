@@ -93,13 +93,13 @@ function csvCell(value: string): string {
 }
 
 export function serializeAppointmentReportCsv(rows: ReportAppointmentRow[]): string {
-  const lines = ["Scheduled at,Agent,Therapist,Status"];
+  const lines = ["Scheduled at,Agent,Therapist,Site,Status"];
   for (const row of rows) {
-    lines.push([row.scheduled_at, row.agent_name, row.therapist_name, row.status].map(csvCell).join(","));
+    lines.push([row.scheduled_at, row.agent_name, row.therapist_name, row.site_name, row.status].map(csvCell).join(","));
   }
   return `${lines.join("\r\n")}\r\n`;
 }
 
-export function reportCsvFilename(range: ReportDateRange): string {
-  return `agentclinic-appointments-${range.from}-to-${range.to}.csv`;
+export function reportCsvFilename(range: ReportDateRange, siteSlug = "all-sites"): string {
+  return `agentclinic-appointments-${range.from}-to-${range.to}-${siteSlug}.csv`;
 }

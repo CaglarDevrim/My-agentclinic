@@ -1,16 +1,19 @@
 import type { StaffHeaderContext } from "../components/Header.js";
 import { Layout } from "../components/Layout.js";
-import type { ClinicReport } from "../db/types.js";
+import type { ClinicReport, ClinicSite } from "../db/types.js";
 import type { ReportFilterErrors, ReportFilterValues } from "../domain/reporting.js";
 
-export function ClinicReportPage({ report, values, errors = {}, staff }: {
+export function ClinicReportPage({ report, values, errors = {}, staff, sites, selectedSiteSlug = "", siteError }: {
   report?: ClinicReport;
   values: ReportFilterValues;
   errors?: ReportFilterErrors;
   staff: StaffHeaderContext;
+  sites: ClinicSite[];
+  selectedSiteSlug?: string;
+  siteError?: string;
 }) {
-  const hasErrors = Object.keys(errors).length > 0;
-  const csvHref = report ? `/dashboard/reports.csv?from=${encodeURIComponent(report.range.from)}&to=${encodeURIComponent(report.range.to)}` : undefined;
+  const hasErrors = Object.keys(errors).length > 0 || Boolean(siteError);
+  const csvHref = report ? `/dashboard/reports.csv?from=${encodeURIComponent(report.range.from)}&to=${encodeURIComponent(report.range.to)}${selectedSiteSlug ? `&site=${encodeURIComponent(selectedSiteSlug)}` : ""}` : undefined;
   return (
     <Layout title="Reports | AgentClinic" activePath="/dashboard/reports" staff={staff}>
       <header class="page-heading">
@@ -20,7 +23,7 @@ export function ClinicReportPage({ report, values, errors = {}, staff }: {
       {hasErrors && (
         <div class="error-summary" role="alert" tabIndex={-1} autofocus>
           <h2>Check the report period</h2>
-          <ul>{Object.entries(errors).map(([field, message]) => <li><a href={`#${field}`}>{message}</a></li>)}</ul>
+          <ul>{Object.entries(errors).map(([field, message]) => <li><a href={`#${field}`}>{message}</a></li>)}{siteError && <li><a href="#site">{siteError}</a></li>}</ul>
         </div>
       )}
       <form class="appointment-form report-filters" method="get" action="/dashboard/reports" noValidate>
@@ -30,6 +33,13 @@ export function ClinicReportPage({ report, values, errors = {}, staff }: {
         <label for="to">To date</label>
         <input id="to" name="to" type="date" required value={values.to} aria-invalid={errors.to ? "true" : undefined} aria-describedby={errors.to ? "report-range-hint to-error" : "report-range-hint"} />
         {errors.to && <p class="field-error" id="to-error">{errors.to}</p>}
+        <label for="site">Clinic site</label>
+        <select id="site" name="site" aria-invalid={siteError ? "true" : undefined} aria-describedby={siteError ? "report-site-hint site-error" : "report-site-hint"}>
+          <option value="all" selected={selectedSiteSlug === ""}>All sites</option>
+          {sites.map((site) => <option value={site.slug} selected={selectedSiteSlug === site.slug}>{site.name}</option>)}
+        </select>
+        <p class="field-hint" id="report-site-hint">Choose one site or include the whole clinic.</p>
+        {siteError && <p class="field-error" id="site-error">{siteError}</p>}
         <p class="field-hint" id="report-range-hint">Scheduled dates are inclusive and use the clinic's local calendar. Maximum 366 days.</p>
         <p class="page-actions report-actions">
           <button class="button" type="submit">Apply filters</button>
@@ -39,7 +49,7 @@ export function ClinicReportPage({ report, values, errors = {}, staff }: {
       </form>
       {report && (
         <section class="report-results" aria-labelledby="report-period">
-          <h2 id="report-period">Report period: {report.range.from} to {report.range.to}</h2>
+          <h2 id="report-period">Report period: {report.range.from} to {report.range.to} — {report.selectedSite?.name ?? "All sites"}</h2>
           <dl class="metrics report-metrics">
             <div><dt>Total appointments</dt><dd>{report.totals.total}</dd></div>
             <div><dt>Pending</dt><dd>{report.totals.pending}</dd></div>

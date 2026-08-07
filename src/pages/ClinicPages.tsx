@@ -4,6 +4,7 @@ import type {
   AilmentSummary,
   AppointmentRecord,
   AvailableSlot,
+  ClinicSite,
   DashboardData,
   TherapistSlot,
   TherapistSummary,
@@ -195,7 +196,7 @@ export function AppointmentFormPage({
           <label for="slotId">Available appointment</label>
           <select id="slotId" name="slotId" required aria-invalid={errors.slotId ? "true" : undefined} aria-describedby={errors.slotId ? "slotId-error" : "slotId-hint"}>
             <option value="">Choose an available time</option>
-            {slots.map((slot) => <option value={slot.id} selected={values.slotId === String(slot.id)}>{slot.therapist_name} — {formatAppointment(slot.scheduled_at)}</option>)}
+            {slots.map((slot) => <option value={slot.id} selected={values.slotId === String(slot.id)}>{slot.therapist_name} — {formatAppointment(slot.scheduled_at)} — {slot.site_name}, {slot.site_address}</option>)}
           </select>
           <p class="field-hint" id="slotId-hint">Only currently available future times are shown.</p>
           {errors.slotId && <p class="field-error" id="slotId-error">{errors.slotId}</p>}
@@ -230,6 +231,8 @@ export function AppointmentConfirmationPage({ appointment }: { appointment: Appo
           <div><dt>Agent</dt><dd>{appointment.agent_name}</dd></div>
           <div><dt>Therapist</dt><dd>{appointment.therapist_name}</dd></div>
           <div><dt>When</dt><dd>{formatAppointment(appointment.scheduled_at)}</dd></div>
+          <div><dt>Site</dt><dd>{appointment.site_name}</dd></div>
+          <div><dt>Address</dt><dd>{appointment.site_address}</dd></div>
           <div><dt>Status</dt><dd><StatusText status={appointment.status} /></dd></div>
         </dl>
         <p class="page-actions">
@@ -241,11 +244,23 @@ export function AppointmentConfirmationPage({ appointment }: { appointment: Appo
   );
 }
 
-export function DashboardPage({ data, staff }: { data: DashboardData; staff: StaffHeaderContext }) {
+export function DashboardPage({ data, staff, sites = [], selectedSiteSlug = "", siteError }: { data: DashboardData; staff: StaffHeaderContext; sites?: ClinicSite[]; selectedSiteSlug?: string; siteError?: string }) {
   return (
     <Layout title="Dashboard | AgentClinic" activePath="/dashboard" staff={staff}>
       <PageHeading title="Dashboard" />
       <p class="page-actions"><a class="button button--secondary" href="/dashboard/therapists">View therapists</a><a class="button button--secondary" href="/dashboard/reports">View reports</a></p>
+      {siteError && <div class="error-summary" role="alert" tabIndex={-1} autofocus><h2>Check the site filter</h2><p><a href="#site">{siteError}</a></p></div>}
+      <form class="appointment-form site-filter" method="get" action="/dashboard" noValidate>
+        <label for="site">Appointment site</label>
+        <select id="site" name="site" aria-invalid={siteError ? "true" : undefined} aria-describedby={siteError ? "site-filter-hint site-error" : "site-filter-hint"}>
+          <option value="all" selected={selectedSiteSlug === ""}>All sites</option>
+          {sites.map((site) => <option value={site.slug} selected={selectedSiteSlug === site.slug}>{site.name}</option>)}
+        </select>
+        <p class="field-hint" id="site-filter-hint">Filters open appointments only; other clinic metrics remain clinic-wide.</p>
+        {siteError && <p class="field-error" id="site-error">{siteError}</p>}
+        <p class="page-actions"><button class="button" type="submit">Apply site filter</button></p>
+      </form>
+      <p class="filter-summary">Open appointment scope: <strong>{data.selectedSite?.name ?? "All sites"}</strong></p>
       <dl class="metrics">
         <div><dt>Total agents</dt><dd>{data.totalAgents}</dd></div>
         <div><dt>Open appointments</dt><dd>{data.openAppointments}</dd></div>
@@ -257,11 +272,12 @@ export function DashboardPage({ data, staff }: { data: DashboardData; staff: Sta
           <tr><th scope="row" data-label="Agent"><a href={`/agents/${agent.id}`}>{agent.name}</a></th><td data-label="Model">{agent.model}</td><td data-label="Status"><StatusText status={agent.status} /></td></tr>
         ))}
       </DashboardTable>
-      <DashboardTable title="Open appointments" headers={["Agent", "Therapist", "When", "Status", "Actions"]}>
+      <DashboardTable title="Open appointments" headers={["Agent", "Therapist", "Site", "When", "Status", "Actions"]}>
         {data.appointments.length ? data.appointments.map((appointment) => (
           <tr>
             <th scope="row" data-label="Agent"><a href={`/agents/${appointment.agent_id}`}>{appointment.agent_name}</a></th>
             <td data-label="Therapist">{appointment.therapist_name}</td>
+            <td data-label="Site"><strong>{appointment.site_name}</strong><br />{appointment.site_address}</td>
             <td data-label="When">{formatAppointment(appointment.scheduled_at)}</td>
             <td data-label="Status"><StatusText status={appointment.status} /></td>
             <td data-label="Actions">
@@ -279,7 +295,7 @@ export function DashboardPage({ data, staff }: { data: DashboardData; staff: Sta
               </div>
             </td>
           </tr>
-        )) : <tr class="empty-row"><td colspan={5}>No open appointments.</td></tr>}
+        )) : <tr class="empty-row"><td colspan={6}>No open appointments for this site.</td></tr>}
       </DashboardTable>
       <DashboardTable title="Ailment workload" headers={["Ailment", "Affected agents"]}>
         {data.ailments.map((ailment) => <tr><th scope="row" data-label="Ailment">{ailment.name}</th><td data-label="Affected agents">{ailment.agent_count}</td></tr>)}
@@ -305,28 +321,36 @@ export function TherapistDirectoryPage({ therapists, staff }: { therapists: Ther
   );
 }
 
-export interface ScheduleValues { scheduledAt: string; }
-export interface ScheduleErrors { scheduledAt?: string; }
+export interface ScheduleValues { scheduledAt: string; siteId: string; }
+export interface ScheduleErrors { scheduledAt?: string; siteId?: string; }
 
-export function TherapistSchedulePage({ slots, staff, values = { scheduledAt: "" }, errors = {} }: { slots: TherapistSlot[]; staff: StaffHeaderContext; values?: ScheduleValues; errors?: ScheduleErrors }) {
+export function TherapistSchedulePage({ slots, sites, staff, values = { scheduledAt: "", siteId: "" }, errors = {} }: { slots: TherapistSlot[]; sites: ClinicSite[]; staff: StaffHeaderContext; values?: ScheduleValues; errors?: ScheduleErrors }) {
   return (
     <Layout title="My schedule | AgentClinic" activePath="/dashboard" staff={staff}>
       <PageHeading title="My schedule" description="Open individual future times for agents to book." />
-      {errors.scheduledAt && <div class="error-summary" role="alert" tabIndex={-1} autofocus><h2>Check the appointment time</h2><p><a href="#scheduledAt">{errors.scheduledAt}</a></p></div>}
+      {Object.keys(errors).length > 0 && <div class="error-summary" role="alert" tabIndex={-1} autofocus><h2>Check the appointment time</h2><ul>{Object.entries(errors).map(([field, message]) => <li><a href={`#${field}`}>{message}</a></li>)}</ul></div>}
       <form class="appointment-form schedule-form" method="post" action="/dashboard/schedule/slots" noValidate>
         <input type="hidden" name="_csrf" value={staff.csrfToken} />
+        <label for="siteId">Clinic site</label>
+        <select id="siteId" name="siteId" required value={values.siteId} aria-invalid={errors.siteId ? "true" : undefined} aria-describedby={errors.siteId ? "siteId-error" : "siteId-hint"}>
+          <option value="">Choose a clinic site</option>
+          {sites.map((site) => <option value={site.id}>{site.name} — {site.address}</option>)}
+        </select>
+        <p class="field-hint" id="siteId-hint">Choose where this appointment will take place.</p>
+        {errors.siteId && <p class="field-error" id="siteId-error">{errors.siteId}</p>}
         <label for="scheduledAt">Future appointment time</label>
         <input id="scheduledAt" name="scheduledAt" type="datetime-local" value={values.scheduledAt} aria-invalid={errors.scheduledAt ? "true" : undefined} aria-describedby={errors.scheduledAt ? "scheduledAt-error" : "scheduledAt-hint"} />
         <p class="field-hint" id="scheduledAt-hint">Times use the clinic's local clock.</p>
         {errors.scheduledAt && <p class="field-error" id="scheduledAt-error">{errors.scheduledAt}</p>}
         <p class="page-actions"><button class="button" type="submit">Open appointment time</button><a class="button button--secondary" href="/dashboard/appointments">My appointments</a></p>
       </form>
-      <DashboardTable title="Upcoming times" headers={["When", "State", "Actions"]}>
+      <DashboardTable title="Upcoming times" headers={["When", "Site", "State", "Actions"]}>
         {slots.length ? slots.map((slot) => <tr>
           <th scope="row" data-label="When">{formatAppointment(slot.scheduled_at)}</th>
+          <td data-label="Site"><strong>{slot.site_name}</strong><br />{slot.site_address}</td>
           <td data-label="State">{slot.is_occupied === 1 ? "Occupied" : "Available"}</td>
           <td data-label="Actions">{slot.is_occupied === 1 ? "Booked times cannot be removed." : <form method="post" action={`/dashboard/schedule/slots/${slot.id}/remove`}><input type="hidden" name="_csrf" value={staff.csrfToken} /><button class="button button--secondary button--compact" type="submit" aria-label={`Remove appointment time ${formatAppointment(slot.scheduled_at)}`}>Remove</button></form>}</td>
-        </tr>) : <tr class="empty-row"><td colspan={3}>No upcoming appointment times.</td></tr>}
+        </tr>) : <tr class="empty-row"><td colspan={4}>No upcoming appointment times.</td></tr>}
       </DashboardTable>
     </Layout>
   );
@@ -337,16 +361,17 @@ export function TherapistAppointmentsPage({ appointments, staff }: { appointment
     <Layout title="My appointments | AgentClinic" activePath="/dashboard" staff={staff}>
       <PageHeading title="My appointments" description="Review and manage appointments assigned to you." />
       <p class="page-actions"><a class="button button--secondary" href="/dashboard/schedule">My schedule</a></p>
-      <DashboardTable title="Open appointments" headers={["Agent", "When", "Status", "Actions"]}>
+      <DashboardTable title="Open appointments" headers={["Agent", "Site", "When", "Status", "Actions"]}>
         {appointments.length ? appointments.map((appointment) => <tr>
           <th scope="row" data-label="Agent"><a href={`/agents/${appointment.agent_id}`}>{appointment.agent_name}</a></th>
+          <td data-label="Site"><strong>{appointment.site_name}</strong><br />{appointment.site_address}</td>
           <td data-label="When">{formatAppointment(appointment.scheduled_at)}</td>
           <td data-label="Status"><StatusText status={appointment.status} /></td>
           <td data-label="Actions"><div class="appointment-actions">
             {appointment.status === "pending" && <form method="post" action={`/dashboard/appointments/${appointment.id}/confirm`}><input type="hidden" name="_csrf" value={staff.csrfToken} /><button class="button button--compact" type="submit" aria-label={`Confirm appointment for ${appointment.agent_name}`}>Confirm</button></form>}
             <form method="post" action={`/dashboard/appointments/${appointment.id}/cancel`}><input type="hidden" name="_csrf" value={staff.csrfToken} /><button class="button button--secondary button--compact" type="submit" aria-label={`Cancel appointment for ${appointment.agent_name}`}>Cancel</button></form>
           </div></td>
-        </tr>) : <tr class="empty-row"><td colspan={4}>No open appointments.</td></tr>}
+        </tr>) : <tr class="empty-row"><td colspan={5}>No open appointments.</td></tr>}
       </DashboardTable>
     </Layout>
   );
