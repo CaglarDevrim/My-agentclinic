@@ -81,6 +81,14 @@ At this point, visitors can submit dependable feedback without requiring client-
 - Preserve therapist isolation, no-store behavior, accessibility, and responsive presentation
 - Add date-boundary, aggregation, CSV-safety, authorization, and production-browser coverage
 
+## Phase 9 — Privacy-Preserving Embedded Map ✅
+
+- Add an optional interactive OpenStreetMap map to the public About page
+- Require explicit visitor activation before making any third-party map request
+- Keep the fictional address and secured external map link available without JavaScript and when the provider fails
+- Use a fixed demonstration location without persistence, API keys, SDKs, or new dependencies
+- Add network-privacy, accessibility, responsive, failure-fallback, and production-browser coverage
+
 ## Deferred
 
-- Embedded maps, multi-site operation, and timezone coordination
+- Multi-site operation and timezone coordination

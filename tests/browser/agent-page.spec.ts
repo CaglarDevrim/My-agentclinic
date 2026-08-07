@@ -322,7 +322,13 @@ test("moderates and publishes a consented customer review", async ({ page }) => 
   expect(hasHorizontalOverflow).toBe(false);
 });
 
-test("presents the fictional clinic location without embedding a map", async ({ page }) => {
+test("loads the fictional clinic map only after explicit consent", async ({ page }) => {
+  const providerRequests: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).hostname === "www.openstreetmap.org") providerRequests.push(request.url());
+  });
+  await page.route("https://www.openstreetmap.org/**", (route) => route.abort("failed"));
+
   await page.goto("/");
   const primaryNavigation = page.getByRole("navigation", { name: "Primary navigation" });
   await expect(primaryNavigation.getByRole("link")).toHaveText(["Agents", "Ailments", "Therapies", "Customer Reviews", "About", "Dashboard"]);
@@ -342,17 +348,50 @@ test("presents the fictional clinic location without embedding a map", async ({ 
   await expect(mapLink).toHaveAttribute("href", "https://www.openstreetmap.org/search?query=42%20Context%20Window%20Way%2C%20San%20Francisco%2C%20CA%2094107");
   await expect(mapLink).toHaveAttribute("target", "_blank");
   await expect(mapLink).toHaveAttribute("rel", "noopener noreferrer");
-
-  await page.getByRole("link", { name: "Read customer reviews" }).focus();
-  await page.keyboard.press("Tab");
-  await expect(mapLink).toBeFocused();
-  await expect(mapLink).toHaveCSS("outline-style", "solid");
+  await expect(page.getByText(/Loading the interactive map contacts OpenStreetMap/)).toBeVisible();
   await expect(page.locator("iframe")).toHaveCount(0);
-  await expect(page.locator("script")).toHaveCount(0);
+  expect(providerRequests).toHaveLength(0);
+
+  const loadMap = page.locator("[data-map-load]");
+  await expect(loadMap).toHaveAccessibleName("Load interactive OpenStreetMap map");
+  await loadMap.focus();
+  await expect(loadMap).toBeFocused();
+  await expect(loadMap).toHaveCSS("outline-style", "solid");
+  await page.keyboard.press("Enter");
+
+  const frame = page.locator("iframe");
+  await expect(frame).toHaveCount(1);
+  await expect(frame).toHaveAttribute("title", "Interactive map showing the fictional AgentClinic location");
+  await expect(frame).toHaveAttribute("loading", "lazy");
+  await expect(frame).toHaveAttribute("referrerpolicy", "no-referrer");
+  await expect(loadMap).toHaveText("Interactive map requested");
+  await expect(loadMap).toHaveAttribute("aria-disabled", "true");
+  await expect(page.getByRole("status")).toContainText("The address and external map link remain available.");
+  await expect.poll(() => providerRequests.length).toBe(1);
+  expect(providerRequests[0]).toContain("/export/embed.html?");
+
+  await loadMap.dispatchEvent("click");
+  await expect(frame).toHaveCount(1);
+  await page.waitForTimeout(100);
+  expect(providerRequests).toHaveLength(1);
+  await expect(page.locator("address")).toBeVisible();
+  await expect(mapLink).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Footer navigation" }).getByRole("link")).toHaveText(["Feedback", "Customer Reviews"]);
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(hasHorizontalOverflow).toBe(false);
+});
+
+test.describe("About map without JavaScript", () => {
+  test.use({ javaScriptEnabled: false });
+
+  test("keeps the address and external map fallback usable", async ({ page }) => {
+    await page.goto("/about");
+    await expect(page.locator("address")).toHaveText("42 Context Window Way, San Francisco, CA 94107");
+    await expect(page.getByRole("link", { name: /Open 42 Context Window Way in OpenStreetMap/ })).toBeVisible();
+    await expect(page.locator("[data-map-load]")).toBeHidden();
+    await expect(page.locator("iframe")).toHaveCount(0);
+  });
 });
 
 test("protects staff pages with accessible login and revocable logout", async ({ page }) => {

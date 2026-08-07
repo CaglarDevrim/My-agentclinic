@@ -37,17 +37,41 @@ export function AboutPage() {
         </section>
 
         <section class="about-location" aria-labelledby="about-location">
-          <div>
+          <div class="about-location__details">
             <p class="eyebrow">Demonstration location</p>
             <h2 id="about-location">Visit AgentClinic</h2>
             <p>AgentClinic and this address are fictional and exist only for this demonstration project.</p>
             <address>42 Context Window Way, San Francisco, CA 94107</address>
           </div>
-          <a class="button button--secondary about-map-link" href={mapUrl} target="_blank" rel="noopener noreferrer">
-            Open 42 Context Window Way in OpenStreetMap (opens in a new tab)
-          </a>
+
+          <div class="about-map" data-map-enhancement>
+            <p class="about-map-privacy" id="about-map-privacy">
+              Loading the interactive map contacts OpenStreetMap and may share your IP address and browser information with the provider.
+            </p>
+            <button
+              class="button about-map-load"
+              type="button"
+              hidden
+              data-map-load
+              aria-controls="about-map-frame"
+              aria-describedby="about-map-privacy"
+            >
+              Load interactive OpenStreetMap map
+            </button>
+            <p class="about-map-status" role="status" aria-live="polite" data-map-status></p>
+            <div
+              class="about-map-frame"
+              id="about-map-frame"
+              aria-label="Interactive map area for the fictional AgentClinic location"
+              data-map-region
+            ></div>
+            <a class="button button--secondary about-map-link" href={mapUrl} target="_blank" rel="noopener noreferrer">
+              Open 42 Context Window Way in OpenStreetMap (opens in a new tab)
+            </a>
+          </div>
         </section>
       </article>
+      <script src="/static/about-map.js" defer></script>
     </Layout>
   );
 }
