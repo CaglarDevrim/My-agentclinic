@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { approveReview, cancelAppointment, confirmAppointment, countFeedback, countPendingReviews, createAppointment, createDatabase, createFeedback, findAgent, findAppointment, findFeedback, getDatabaseConfig, getDashboard, listAgents, listAilments, listPublicReviews, listReviewModerationItems, listTherapies, openDatabase, unpublishReview } from "../src/db/index.js";
+import { approveReview, cancelAppointment, confirmAppointment, countFeedback, countPendingReviews, createAppointment, createDatabase, createFeedback, findAgent, findAppointment, findFeedback, getDatabaseConfig, getDashboard, listActiveSites, listAgents, listAilments, listPublicReviews, listReviewModerationItems, listTherapies, openDatabase, unpublishReview } from "../src/db/index.js";
 import { migrateDatabase } from "../src/db/migrate.js";
 import { seedDatabase } from "../src/db/seed.js";
 
@@ -25,11 +25,17 @@ describe("clinic database", () => {
     const db = await openDatabase();
     await migrateDatabase(db);
     await seedDatabase(db);
-    expect(Number((await db.execute("SELECT COUNT(*) AS count FROM schema_migrations")).rows[0].count)).toBe(13);
+    expect(Number((await db.execute("SELECT COUNT(*) AS count FROM schema_migrations")).rows[0].count)).toBe(14);
     expect(await listAgents(db)).toHaveLength(6);
     expect(await listAilments(db)).toHaveLength(6);
     expect(await listTherapies(db)).toHaveLength(8);
     expect(Number((await db.execute("SELECT COUNT(*) AS count FROM appointments")).rows[0].count)).toBe(3);
+    expect(await listActiveSites(db)).toEqual([
+      expect.objectContaining({ id: 1, slug: "context-window-clinic", name: "Context Window Clinic" }),
+      expect.objectContaining({ id: 2, slug: "token-harbor-clinic", name: "Token Harbor Clinic" }),
+    ]);
+    expect((await db.execute("SELECT DISTINCT site_id FROM appointments")).rows).toEqual([{ site_id: 1 }]);
+    await expect(db.execute("INSERT INTO therapist_slots (therapist_id, scheduled_at, site_id) VALUES (1, '2099-12-01T10:00', 999)")).rejects.toThrow(/invalid therapist slot site/i);
     expect((await findAgent(db, 1))?.therapies.map((item) => item.name)).toContain("Mindful Token Counting");
     db.close();
   });

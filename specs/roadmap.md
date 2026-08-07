@@ -89,6 +89,14 @@ At this point, visitors can submit dependable feedback without requiring client-
 - Use a fixed demonstration location without persistence, API keys, SDKs, or new dependencies
 - Add network-privacy, accessibility, responsive, failure-fallback, and production-browser coverage
 
+## Phase 10 — Multi-site Operations ✅
+
+- Add two normalized fictional clinic sites and backfill existing schedules and appointments safely
+- Let therapists open site-specific slots and show the authoritative site throughout booking and appointment management
+- Add staff dashboard and operational-report filtering by site, including site-aware CSV exports
+- Include clinic site details in visitor notification previews and public About locations
+- Preserve clinic-wide staff permissions, cross-site therapist collision safety, privacy, accessibility, and responsive coverage
+
 ## Deferred
 
-- Multi-site operation and timezone coordination
+- Timezone coordination

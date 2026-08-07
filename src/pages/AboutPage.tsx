@@ -1,6 +1,18 @@
 import { Layout } from "../components/Layout.js";
 
-const mapUrl = "https://www.openstreetmap.org/search?query=42%20Context%20Window%20Way%2C%20San%20Francisco%2C%20CA%2094107";
+const locations = [{
+  slug: "context-window-clinic",
+  name: "Context Window Clinic",
+  address: "42 Context Window Way, San Francisco, CA 94107",
+  searchUrl: "https://www.openstreetmap.org/search?query=42%20Context%20Window%20Way%2C%20San%20Francisco%2C%20CA%2094107",
+  embedUrl: "https://www.openstreetmap.org/export/embed.html?bbox=-122.4050%2C37.7665%2C-122.3850%2C37.7865&layer=mapnik&marker=37.7765%2C-122.3950",
+}, {
+  slug: "token-harbor-clinic",
+  name: "Token Harbor Clinic",
+  address: "88 Token Harbor Drive, Oakland, CA 94607",
+  searchUrl: "https://www.openstreetmap.org/search?query=88%20Token%20Harbor%20Drive%2C%20Oakland%2C%20CA%2094607",
+  embedUrl: "https://www.openstreetmap.org/export/embed.html?bbox=-122.2812%2C37.7944%2C-122.2612%2C37.8144&layer=mapnik&marker=37.8044%2C-122.2712",
+}] as const;
 
 export function AboutPage() {
   return (
@@ -36,38 +48,30 @@ export function AboutPage() {
           </ul>
         </section>
 
-        <section class="about-location" aria-labelledby="about-location">
-          <div class="about-location__details">
-            <p class="eyebrow">Demonstration location</p>
+        <section class="about-locations" aria-labelledby="about-location">
+          <header class="about-location-heading">
+            <p class="eyebrow">Demonstration locations</p>
             <h2 id="about-location">Visit AgentClinic</h2>
-            <p>AgentClinic and this address are fictional and exist only for this demonstration project.</p>
-            <address>42 Context Window Way, San Francisco, CA 94107</address>
-          </div>
-
-          <div class="about-map" data-map-enhancement>
-            <p class="about-map-privacy" id="about-map-privacy">
-              Loading the interactive map contacts OpenStreetMap and may share your IP address and browser information with the provider.
-            </p>
-            <button
-              class="button about-map-load"
-              type="button"
-              hidden
-              data-map-load
-              aria-controls="about-map-frame"
-              aria-describedby="about-map-privacy"
-            >
-              Load interactive OpenStreetMap map
-            </button>
-            <p class="about-map-status" role="status" aria-live="polite" data-map-status></p>
-            <div
-              class="about-map-frame"
-              id="about-map-frame"
-              aria-label="Interactive map area for the fictional AgentClinic location"
-              data-map-region
-            ></div>
-            <a class="button button--secondary about-map-link" href={mapUrl} target="_blank" rel="noopener noreferrer">
-              Open 42 Context Window Way in OpenStreetMap (opens in a new tab)
-            </a>
+            <p>AgentClinic and these addresses are fictional and exist only for this demonstration project.</p>
+          </header>
+          <div class="about-location-grid">
+            {locations.map((location) => <article class="about-location-card" aria-labelledby={`${location.slug}-name`}>
+              <h3 id={`${location.slug}-name`}>{location.name}</h3>
+              <address>{location.address}</address>
+              <div class="about-map" data-map-enhancement data-map-url={location.embedUrl} data-map-name={location.name}>
+                <p class="about-map-privacy" id={`${location.slug}-privacy`}>
+                  Loading this interactive map contacts OpenStreetMap and may share your IP address and browser information with the provider.
+                </p>
+                <button class="button about-map-load" type="button" hidden data-map-load aria-describedby={`${location.slug}-privacy`}>
+                  Load interactive map for {location.name}
+                </button>
+                <p class="about-map-status" role="status" aria-live="polite" data-map-status></p>
+                <div class="about-map-frame" aria-label={`Interactive map area for ${location.name}`} data-map-region></div>
+                <a class="button button--secondary about-map-link" href={location.searchUrl} target="_blank" rel="noopener noreferrer">
+                  Open {location.address} in OpenStreetMap (opens in a new tab)
+                </a>
+              </div>
+            </article>)}
           </div>
         </section>
       </article>

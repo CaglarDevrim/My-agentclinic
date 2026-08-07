@@ -166,6 +166,8 @@ describe("visitor notifications and reminders", () => {
       expect(transport.deliveries).toHaveLength(1);
       expect(transport.deliveries[0].notification.event_kind).toBe("appointment_created");
       expect(transport.deliveries[0].message.text).toContain("Bartholomew-47B with Dr Evelyn Watts");
+      expect(transport.deliveries[0].message.text).toContain("Site: Context Window Clinic");
+      expect(transport.deliveries[0].message.text).toContain("42 Context Window Way");
       expect((await db.execute("SELECT attempt_count FROM notification_outbox WHERE event_kind = 'appointment_created'")).rows[0].attempt_count).toBe(2);
     } finally {
       db.close();
@@ -183,9 +185,12 @@ describe("visitor notifications and reminders", () => {
       agent_name: "<script>alert(1)</script>",
       therapist_name: "Dr & Co",
       appointment_scheduled_at: "2099-04-10T10:00",
+      site_name: "Context Window Clinic",
+      site_address: "42 Context Window Way, San Francisco, CA 94107",
     });
     expect(message.html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
     expect(message.html).toContain("Dr &amp; Co");
+    expect(message.html).toContain("Context Window Clinic");
     expect(message.html).not.toContain("<script>alert(1)</script>");
   });
 
@@ -201,6 +206,8 @@ describe("visitor notifications and reminders", () => {
       agent_name: "Bartholomew-47B",
       therapist_name: "Dr Evelyn Watts",
       appointment_scheduled_at: "2099-04-10T10:00",
+      site_name: "Context Window Clinic",
+      site_address: "42 Context Window Way, San Francisco, CA 94107",
     };
     await new LocalPreviewTransport(directory).deliver(notification, renderNotification(notification));
     const filenames = readdirSync(directory).sort();

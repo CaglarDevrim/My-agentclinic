@@ -73,6 +73,7 @@ test("completes agent care and appointment booking", async ({ page }) => {
   const viewportWidth = page.viewportSize()!.width;
   const therapistName = viewportWidth === 375 ? "Dr Evelyn Watts" : "Dr Marcus Chen";
   const appointmentWhen = viewportWidth === 375 ? "2099-04-10 at 10:00" : "2099-04-11 at 14:30";
+  const siteName = viewportWidth === 375 ? "Context Window Clinic" : "Token Harbor Clinic";
   await page.goto("/agents/1");
   await expect(page.getByRole("heading", { level: 1, name: "Bartholomew-47B" })).toBeVisible();
   await expect(page.getByText("Context-Window Claustrophobia", { exact: true })).toBeVisible();
@@ -95,6 +96,7 @@ test("completes agent care and appointment booking", async ({ page }) => {
   await expect(page).toHaveURL(/\/agents\/1\/appointments\/\d+$/);
   await expect(page.getByRole("heading", { level: 1, name: "Appointment requested" })).toBeVisible();
   await expect(page.getByText(therapistName)).toBeVisible();
+  await expect(page.getByText(siteName)).toBeVisible();
   await expect(page.getByText("browser.visitor@example.com")).toHaveCount(0);
   expect(page.url()).not.toContain("browser.visitor@example.com");
 
@@ -137,10 +139,12 @@ test("lets a therapist open a slot and manage only the resulting appointment", a
   await expect(page.getByRole("heading", { level: 1, name: "My schedule" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Reports" })).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "My schedule" })).toHaveAttribute("aria-current", "page");
+  await page.getByLabel("Clinic site").selectOption("2");
   await page.getByLabel("Future appointment time").fill(scheduledAt);
   await page.getByRole("button", { name: "Open appointment time" }).click();
   await expect(page).toHaveURL("/dashboard/schedule");
   const slotRow = page.locator("tr").filter({ hasText: formatted });
+  await expect(slotRow).toContainText("Token Harbor Clinic");
   await expect(slotRow.getByText("Available", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Sign out" }).click();
@@ -180,6 +184,10 @@ test("lets a therapist open a slot and manage only the resulting appointment", a
 test("filters and exports the staff clinic report", async ({ page }) => {
   await page.goto("/dashboard");
   await signInAsStaff(page);
+  await page.getByLabel("Appointment site").selectOption("token-harbor-clinic");
+  await page.getByRole("button", { name: "Apply site filter" }).click();
+  await expect(page).toHaveURL(/\/dashboard\?site=token-harbor-clinic$/);
+  await expect(page.getByText("Open appointment scope:")).toContainText("Token Harbor Clinic");
   await page.getByRole("link", { name: "Reports", exact: true }).click();
   await expect(page).toHaveURL("/dashboard/reports");
   await expect(page.getByRole("heading", { level: 1, name: "Clinic reports" })).toBeVisible();
@@ -187,9 +195,10 @@ test("filters and exports the staff clinic report", async ({ page }) => {
 
   await page.getByLabel("From date").fill("2099-01-01");
   await page.getByLabel("To date").fill("2099-03-31");
+  await page.getByLabel("Clinic site").selectOption("all");
   await page.getByRole("button", { name: "Apply filters" }).click();
-  await expect(page).toHaveURL(/\/dashboard\/reports\?from=2099-01-01&to=2099-03-31$/);
-  await expect(page.getByRole("heading", { level: 2, name: "Report period: 2099-01-01 to 2099-03-31" })).toBeVisible();
+  await expect(page).toHaveURL(/\/dashboard\/reports\?from=2099-01-01&to=2099-03-31&site=all$/);
+  await expect(page.getByRole("heading", { level: 2, name: "Report period: 2099-01-01 to 2099-03-31 — All sites" })).toBeVisible();
   await expect(page.locator(".report-metrics dd")).toHaveText(["3", "1", "1", "1"]);
   await expect(page.getByRole("heading", { level: 3, name: "Therapist workload" })).toBeVisible();
   await expect(page.getByRole("heading", { level: 3, name: "Agent demand" })).toBeVisible();
@@ -198,13 +207,17 @@ test("filters and exports the staff clinic report", async ({ page }) => {
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("link", { name: "Download CSV" }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe("agentclinic-appointments-2099-01-01-to-2099-03-31.csv");
+  expect(download.suggestedFilename()).toBe("agentclinic-appointments-2099-01-01-to-2099-03-31-all-sites.csv");
   const downloadPath = await download.path();
   if (!downloadPath) throw new Error("Expected the report CSV download path.");
   const csv = readFileSync(downloadPath, "utf8");
-  expect(csv).toContain("Scheduled at,Agent,Therapist,Status\r\n");
+  expect(csv).toContain("Scheduled at,Agent,Therapist,Site,Status\r\n");
   expect(csv.trim().split(/\r?\n/)).toHaveLength(4);
   expect(csv).not.toContain("@example.com");
+
+  await page.getByLabel("Clinic site").selectOption("context-window-clinic");
+  await page.getByRole("button", { name: "Apply filters" }).click();
+  await expect(page.getByRole("heading", { level: 2 })).toContainText("Context Window Clinic");
 
   await page.getByLabel("From date").fill("2099-03-31");
   await page.getByLabel("To date").fill("2099-01-01");
@@ -341,19 +354,19 @@ test("loads the fictional clinic map only after explicit consent", async ({ page
     await expect(page.getByRole("heading", { level: 2, name: heading })).toBeVisible();
   }
   await expect(primaryNavigation.getByRole("link", { name: "About", exact: true })).toHaveAttribute("aria-current", "page");
-  await expect(page.locator("address")).toHaveText("42 Context Window Way, San Francisco, CA 94107");
+  await expect(page.locator("address")).toHaveText(["42 Context Window Way, San Francisco, CA 94107", "88 Token Harbor Drive, Oakland, CA 94607"]);
   await expect(page.getByText(/fictional and exist only for this demonstration project/i)).toBeVisible();
 
-  const mapLink = page.getByRole("link", { name: /Open 42 Context Window Way in OpenStreetMap/ });
+  const mapLink = page.getByRole("link", { name: /Open 42 Context Window Way, San Francisco/ });
   await expect(mapLink).toHaveAttribute("href", "https://www.openstreetmap.org/search?query=42%20Context%20Window%20Way%2C%20San%20Francisco%2C%20CA%2094107");
   await expect(mapLink).toHaveAttribute("target", "_blank");
   await expect(mapLink).toHaveAttribute("rel", "noopener noreferrer");
-  await expect(page.getByText(/Loading the interactive map contacts OpenStreetMap/)).toBeVisible();
+  await expect(page.getByText(/Loading this interactive map contacts OpenStreetMap/)).toHaveCount(2);
   await expect(page.locator("iframe")).toHaveCount(0);
   expect(providerRequests).toHaveLength(0);
 
-  const loadMap = page.locator("[data-map-load]");
-  await expect(loadMap).toHaveAccessibleName("Load interactive OpenStreetMap map");
+  const loadMap = page.locator(".about-location-card").filter({ hasText: "Context Window Clinic" }).locator("[data-map-load]");
+  await expect(loadMap).toHaveAccessibleName("Load interactive map for Context Window Clinic");
   await loadMap.focus();
   await expect(loadMap).toBeFocused();
   await expect(loadMap).toHaveCSS("outline-style", "solid");
@@ -361,12 +374,12 @@ test("loads the fictional clinic map only after explicit consent", async ({ page
 
   const frame = page.locator("iframe");
   await expect(frame).toHaveCount(1);
-  await expect(frame).toHaveAttribute("title", "Interactive map showing the fictional AgentClinic location");
+  await expect(frame).toHaveAttribute("title", "Interactive map showing Context Window Clinic");
   await expect(frame).toHaveAttribute("loading", "lazy");
   await expect(frame).toHaveAttribute("referrerpolicy", "no-referrer");
   await expect(loadMap).toHaveText("Interactive map requested");
   await expect(loadMap).toHaveAttribute("aria-disabled", "true");
-  await expect(page.getByRole("status")).toContainText("The address and external map link remain available.");
+  await expect(page.getByRole("status").first()).toContainText("The address and external map link remain available.");
   await expect.poll(() => providerRequests.length).toBe(1);
   expect(providerRequests[0]).toContain("/export/embed.html?");
 
@@ -374,7 +387,14 @@ test("loads the fictional clinic map only after explicit consent", async ({ page
   await expect(frame).toHaveCount(1);
   await page.waitForTimeout(100);
   expect(providerRequests).toHaveLength(1);
-  await expect(page.locator("address")).toBeVisible();
+  const secondLoadMap = page.getByRole("button", { name: "Load interactive map for Token Harbor Clinic" });
+  await secondLoadMap.click();
+  await expect(page.locator("iframe")).toHaveCount(2);
+  await expect.poll(() => providerRequests.length).toBe(2);
+  expect(providerRequests[1]).toContain("marker=37.8044%2C-122.2712");
+  await expect(page.locator("address")).toHaveCount(2);
+  await expect(page.locator("address").first()).toBeVisible();
+  await expect(page.locator("address").last()).toBeVisible();
   await expect(mapLink).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Footer navigation" }).getByRole("link")).toHaveText(["Feedback", "Customer Reviews"]);
 
@@ -387,9 +407,10 @@ test.describe("About map without JavaScript", () => {
 
   test("keeps the address and external map fallback usable", async ({ page }) => {
     await page.goto("/about");
-    await expect(page.locator("address")).toHaveText("42 Context Window Way, San Francisco, CA 94107");
-    await expect(page.getByRole("link", { name: /Open 42 Context Window Way in OpenStreetMap/ })).toBeVisible();
-    await expect(page.locator("[data-map-load]")).toBeHidden();
+    await expect(page.locator("address")).toHaveText(["42 Context Window Way, San Francisco, CA 94107", "88 Token Harbor Drive, Oakland, CA 94607"]);
+    await expect(page.getByRole("link", { name: /in OpenStreetMap/ })).toHaveCount(2);
+    await expect(page.locator("[data-map-load]")).toHaveCount(2);
+    await expect(page.locator("[data-map-load]").first()).toBeHidden();
     await expect(page.locator("iframe")).toHaveCount(0);
   });
 });

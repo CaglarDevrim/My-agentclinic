@@ -48,10 +48,10 @@ export async function seedDatabase(db: ClinicDatabase): Promise<void> {
     ...ailmentTherapies.map((args) => ({ sql: "INSERT OR IGNORE INTO ailment_therapies (ailment_id, therapy_id) VALUES (?, ?)", args: [...args] })),
     { sql: "INSERT OR IGNORE INTO therapists (normalized_name, display_name) VALUES ('dr evelyn watts', 'Dr Evelyn Watts')", args: [] },
     { sql: "INSERT OR IGNORE INTO therapists (normalized_name, display_name) VALUES ('dr marcus chen', 'Dr Marcus Chen')", args: [] },
-    ...appointments.map((args) => ({ sql: "INSERT OR IGNORE INTO appointments (id, agent_id, therapist_name, scheduled_at, status) VALUES (?, ?, ?, ?, ?)", args: [...args] })),
+    ...appointments.map((args) => ({ sql: "INSERT OR IGNORE INTO appointments (id, agent_id, therapist_name, scheduled_at, status, site_id) VALUES (?, ?, ?, ?, ?, 1)", args: [...args] })),
     { sql: "UPDATE appointments SET therapist_id = (SELECT id FROM therapists WHERE normalized_name = lower(trim(appointments.therapist_name))) WHERE therapist_id IS NULL", args: [] },
-    { sql: "INSERT OR IGNORE INTO therapist_slots (therapist_id, scheduled_at) SELECT id, '2099-04-10T10:00' FROM therapists WHERE normalized_name = 'dr evelyn watts'", args: [] },
-    { sql: "INSERT OR IGNORE INTO therapist_slots (therapist_id, scheduled_at) SELECT id, '2099-04-11T14:30' FROM therapists WHERE normalized_name = 'dr marcus chen'", args: [] },
+    { sql: "INSERT OR IGNORE INTO therapist_slots (therapist_id, scheduled_at, site_id) SELECT id, '2099-04-10T10:00', 1 FROM therapists WHERE normalized_name = 'dr evelyn watts'", args: [] },
+    { sql: "INSERT OR IGNORE INTO therapist_slots (therapist_id, scheduled_at, site_id) SELECT id, '2099-04-11T14:30', 2 FROM therapists WHERE normalized_name = 'dr marcus chen'", args: [] },
   ];
   await db.batch(statements, "write");
 }

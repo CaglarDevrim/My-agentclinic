@@ -4,6 +4,14 @@ export type StaffRole = "staff" | "therapist";
 export type NotificationEventKind = "appointment_created" | "appointment_confirmed" | "appointment_cancelled" | "appointment_reminder_24h";
 export type NotificationState = "pending" | "processing" | "processed" | "failed" | "suppressed";
 
+export interface ClinicSite {
+  id: number;
+  slug: string;
+  name: string;
+  address: string;
+  is_active: 0 | 1;
+}
+
 export interface AgentRecord {
   id: number;
   name: string;
@@ -31,6 +39,10 @@ export interface AppointmentRecord {
   therapist_name: string;
   therapist_id: number | null;
   slot_id: number | null;
+  site_id: number;
+  site_slug: string;
+  site_name: string;
+  site_address: string;
   scheduled_at: string;
   status: AppointmentStatus;
   notification_email?: string | null;
@@ -48,6 +60,8 @@ export interface NotificationDelivery {
   agent_name: string;
   therapist_name: string;
   appointment_scheduled_at: string;
+  site_name: string;
+  site_address: string;
 }
 
 export interface AvailableSlot {
@@ -55,6 +69,10 @@ export interface AvailableSlot {
   therapist_id: number;
   therapist_name: string;
   scheduled_at: string;
+  site_id: number;
+  site_slug: string;
+  site_name: string;
+  site_address: string;
 }
 
 export interface TherapistSlot extends AvailableSlot {
@@ -93,6 +111,7 @@ export interface DashboardData {
   agents: AgentRecord[];
   appointments: AppointmentRecord[];
   ailments: Array<AilmentRecord & { agent_count: number }>;
+  selectedSite: ClinicSite | null;
 }
 
 export interface ReportDateRange {
@@ -127,6 +146,7 @@ export interface ReportAppointmentRow {
   scheduled_at: string;
   agent_name: string;
   therapist_name: string;
+  site_name: string;
   status: AppointmentStatus;
 }
 
@@ -135,6 +155,7 @@ export interface ClinicReport {
   totals: ClinicReportTotals;
   therapistWorkload: TherapistWorkload[];
   agentDemand: AgentDemand[];
+  selectedSite: ClinicSite | null;
 }
 
 export interface FeedbackInput {

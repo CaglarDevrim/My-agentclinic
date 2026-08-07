@@ -81,17 +81,22 @@ describe("therapist accounts and schedules", () => {
     expect((await request("/dashboard/reports")).status).toBe(403);
     expect(await (await request("/dashboard/schedule")).text()).not.toContain('href="/dashboard/reports"');
 
-    const creation = await request("/dashboard/schedule/slots", { method: "POST", body: new URLSearchParams({ scheduledAt: "2099-08-20T11:15" }) });
+    const creation = await request("/dashboard/schedule/slots", { method: "POST", body: new URLSearchParams({ siteId: "1", scheduledAt: "2099-08-20T11:15" }) });
     expect(creation.status).toBe(303);
     const scheduleHtml = await (await request("/dashboard/schedule")).text();
     expect(scheduleHtml).toContain("2099-08-20 at 11:15");
+    expect(scheduleHtml).toContain("Context Window Clinic");
     expect(scheduleHtml).toContain("Available");
+
+    const crossSiteCollision = await request("/dashboard/schedule/slots", { method: "POST", body: new URLSearchParams({ siteId: "2", scheduledAt: "2099-08-20T11:15" }) });
+    expect(crossSiteCollision.status).toBe(422);
+    expect(await crossSiteCollision.text()).toContain("including at another site");
 
     const slotId = Number((await db.execute({ sql: "SELECT id FROM therapist_slots WHERE therapist_id = ? AND scheduled_at = ?", args: [created.therapistId, "2099-08-20T11:15"] })).rows[0].id);
     const booking = await app.request("/agents/1/appointments", { method: "POST", body: new URLSearchParams({ slotId: String(slotId), email: "visitor@example.com", notificationConsent: "yes" }) });
     expect(booking.status).toBe(303);
     const appointments = await request("/dashboard/appointments");
-    expect(await appointments.text()).toContain("Bartholomew-47B");
+    expect(await appointments.text()).toContain("Context Window Clinic");
 
     const other = await createTherapistUser(db, { email: "other@example.com", displayName: "Dr Other", passwordHash });
     const otherAppointment = await db.execute({

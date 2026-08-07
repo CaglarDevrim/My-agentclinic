@@ -6,7 +6,7 @@ import { clearLoginCsrfCookie, clearSessionCookie, readLoginCsrfCookie, readSess
 import { authenticateStaffCredentials, authenticateStaffSession, createStaffSession, endStaffSession } from "./auth/service.js";
 import { constantTimeStringEqual, createLoginCsrfToken, hasSameOrigin, isFreshLoginCsrfToken, isValidStaffEmail, isValidStaffPassword, normalizeStaffEmail, safeDashboardReturnTo } from "./auth/security.js";
 import type { AuthenticatedStaff } from "./auth/types.js";
-import { approveReview, cancelAppointment, confirmAppointment, createAppointmentFromSlot, createFeedback, createTherapistSlot, findAgent, findAppointment, getClinicReport, getDashboard, listAgents, listAilments, listAvailableSlots, listPublicReviews, listReportAppointments, listReviewModerationItems, listTherapistAppointments, listTherapists, listTherapistSlots, listTherapies, removeTherapistSlot, unpublishReview, type ClinicDatabase } from "./db/index.js";
+import { approveReview, cancelAppointment, confirmAppointment, createAppointmentFromSlot, createFeedback, createTherapistSlot, findActiveSiteById, findActiveSiteBySlug, findAgent, findAppointment, getClinicReport, getDashboard, listActiveSites, listAgents, listAilments, listAvailableSlots, listPublicReviews, listReportAppointments, listReviewModerationItems, listTherapistAppointments, listTherapists, listTherapistSlots, listTherapies, removeTherapistSlot, unpublishReview, type ClinicDatabase } from "./db/index.js";
 import { findAgentBySlug } from "./domain/care.js";
 import { validateFeedback, type FeedbackValues } from "./domain/feedback.js";
 import { normalizeNotificationEmail, validateNotificationContact } from "./domain/notifications.js";
@@ -67,6 +67,16 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
   const app = new Hono<AppEnv>();
   const logger = options.logger ?? console.log;
   const now = options.now ?? (() => new Date());
+
+  const resolveSiteFilter = async (query: URLSearchParams) => {
+    const values = query.getAll("site");
+    if (values.length === 0 || (values.length === 1 && values[0] === "all")) return { slug: "", site: undefined, error: undefined };
+    const value = values.length === 1 && values[0].length <= 80 && !/[\u0000-\u001f\u007f]/.test(values[0]) ? values[0] : "";
+    if (values.length !== 1) return { slug: "", site: undefined, error: "Choose the site only once." };
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) return { slug: value, site: undefined, error: "Choose a valid clinic site." };
+    const site = await findActiveSiteBySlug(db, value);
+    return site ? { slug: value, site, error: undefined } : { slug: value, site: undefined, error: "Choose an active clinic site." };
+  };
 
   app.use("*", async (context, next) => {
     const started = performance.now();
@@ -204,7 +214,10 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
   app.get("/dashboard", async (context) => {
     const auth = context.get("staffAuth");
     if (auth.role === "therapist") return context.redirect("/dashboard/schedule", 303);
-    return context.render(<DashboardPage data={await getDashboard(db)} staff={staffHeader(auth)} />);
+    const sites = await listActiveSites(db);
+    const selection = await resolveSiteFilter(new URL(context.req.url).searchParams);
+    if (selection.error) context.status(422);
+    return context.render(<DashboardPage data={await getDashboard(db, selection.site?.id)} sites={sites} selectedSiteSlug={selection.slug} siteError={selection.error} staff={staffHeader(auth)} />);
   });
   app.get("/dashboard/reports", async (context) => {
     const auth = context.get("staffAuth");
@@ -214,11 +227,13 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
     }
     const query = new URL(context.req.url).searchParams;
     const result = parseReportDateRange(query.getAll("from"), query.getAll("to"), now());
-    if (!result.range) {
+    const sites = await listActiveSites(db);
+    const selection = await resolveSiteFilter(query);
+    if (!result.range || selection.error) {
       context.status(422);
-      return context.render(<ClinicReportPage values={result.values} errors={result.errors} staff={staffHeader(auth)} />);
+      return context.render(<ClinicReportPage values={result.values} errors={result.errors} sites={sites} selectedSiteSlug={selection.slug} siteError={selection.error} staff={staffHeader(auth)} />);
     }
-    return context.render(<ClinicReportPage report={await getClinicReport(db, result.range)} values={result.values} staff={staffHeader(auth)} />);
+    return context.render(<ClinicReportPage report={await getClinicReport(db, result.range, selection.site?.id)} values={result.values} sites={sites} selectedSiteSlug={selection.slug} staff={staffHeader(auth)} />);
   });
   app.on(["GET", "HEAD"], "/dashboard/reports.csv", async (context) => {
     const auth = context.get("staffAuth");
@@ -228,11 +243,12 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
     }
     const query = new URL(context.req.url).searchParams;
     const result = parseReportDateRange(query.getAll("from"), query.getAll("to"), now());
-    if (!result.range) return context.text("Enter a valid report date range.", 422);
+    const selection = await resolveSiteFilter(query);
+    if (!result.range || selection.error) return context.text("Enter a valid report date range.", 422);
     context.header("Content-Type", "text/csv; charset=utf-8");
-    context.header("Content-Disposition", `attachment; filename="${reportCsvFilename(result.range)}"`);
+    context.header("Content-Disposition", `attachment; filename="${reportCsvFilename(result.range, selection.site?.slug)}"`);
     if (context.req.method === "HEAD") return context.body(null, 200);
-    return context.body(serializeAppointmentReportCsv(await listReportAppointments(db, result.range)));
+    return context.body(serializeAppointmentReportCsv(await listReportAppointments(db, result.range, selection.site?.id)));
   });
   app.get("/dashboard/therapists", async (context) => {
     const auth = context.get("staffAuth");
@@ -248,7 +264,7 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
       context.status(403);
       return context.render(<ErrorPage status={403} title="Therapist access required" message="This schedule belongs to a linked therapist account." staff={staffHeader(auth)} />);
     }
-    return context.render(<TherapistSchedulePage slots={await listTherapistSlots(db, auth.therapistId, now())} staff={staffHeader(auth)} />);
+    return context.render(<TherapistSchedulePage slots={await listTherapistSlots(db, auth.therapistId, now())} sites={await listActiveSites(db)} staff={staffHeader(auth)} />);
   });
   app.post("/dashboard/schedule/slots", async (context) => {
     const auth = context.get("staffAuth");
@@ -258,15 +274,21 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
     }
     const form = await context.req.raw.formData();
     const scheduledAt = singleFormValue(form, "scheduledAt") ?? "";
-    const error = validateScheduledAt(scheduledAt, now());
-    if (error) {
+    const siteIdValue = singleFormValue(form, "siteId") ?? "";
+    const siteId = parsePositiveId(siteIdValue);
+    const site = siteId ? await findActiveSiteById(db, siteId) : undefined;
+    const errors: { scheduledAt?: string; siteId?: string } = {};
+    const scheduledAtError = validateScheduledAt(scheduledAt, now());
+    if (scheduledAtError) errors.scheduledAt = scheduledAtError;
+    if (!site) errors.siteId = "Choose an active clinic site.";
+    if (Object.keys(errors).length) {
       context.status(422);
-      return context.render(<TherapistSchedulePage slots={await listTherapistSlots(db, auth.therapistId, now())} staff={staffHeader(auth)} values={{ scheduledAt }} errors={{ scheduledAt: error }} />);
+      return context.render(<TherapistSchedulePage slots={await listTherapistSlots(db, auth.therapistId, now())} sites={await listActiveSites(db)} staff={staffHeader(auth)} values={{ scheduledAt, siteId: siteIdValue }} errors={errors} />);
     }
-    const result = await createTherapistSlot(db, auth.therapistId, scheduledAt);
+    const result = await createTherapistSlot(db, auth.therapistId, scheduledAt, siteId!);
     if (result === "duplicate") {
       context.status(422);
-      return context.render(<TherapistSchedulePage slots={await listTherapistSlots(db, auth.therapistId, now())} staff={staffHeader(auth)} values={{ scheduledAt }} errors={{ scheduledAt: "You already opened this appointment time." }} />);
+      return context.render(<TherapistSchedulePage slots={await listTherapistSlots(db, auth.therapistId, now())} sites={await listActiveSites(db)} staff={staffHeader(auth)} values={{ scheduledAt, siteId: siteIdValue }} errors={{ scheduledAt: "You already opened this appointment time, including at another site." }} />);
     }
     return context.redirect("/dashboard/schedule", 303);
   });

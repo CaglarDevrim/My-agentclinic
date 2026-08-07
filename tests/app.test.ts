@@ -269,7 +269,7 @@ describe("AgentClinic routes", () => {
     expect(css).toContain(".review-card");
     expect(css).toContain(".moderation-card");
     expect(css).toContain(".about-page");
-    expect(css).toContain(".about-location address");
+    expect(css).toContain(".about-location-card address");
     expect(css).toContain(".table-wrap");
     expect(css).toContain("@media (min-width: 641px)");
     expect(css).toContain('a[aria-current="page"]');
@@ -293,10 +293,13 @@ describe("AgentClinic routes", () => {
     expect(html).toContain("fictional and exist only for this demonstration project");
     expect(html).toContain("<address>42 Context Window Way, San Francisco, CA 94107</address>");
     expect(html).toContain(`href="${mapUrl}" target="_blank" rel="noopener noreferrer"`);
-    expect(html).toContain("Open 42 Context Window Way in OpenStreetMap (opens in a new tab)");
-    expect(html).toContain("Loading the interactive map contacts OpenStreetMap and may share your IP address and browser information with the provider.");
-    expect(html).toMatch(/<button[^>]+data-map-load="true"[^>]+aria-controls="about-map-frame"[^>]+aria-describedby="about-map-privacy"/);
-    expect(html).toMatch(/<div[^>]+data-map-region="true"><\/div>/);
+    expect(html).toContain("Context Window Clinic");
+    expect(html).toContain("Token Harbor Clinic");
+    expect(html).toContain("88 Token Harbor Drive, Oakland, CA 94607");
+    expect(html).toContain("Open 42 Context Window Way, San Francisco, CA 94107 in OpenStreetMap (opens in a new tab)");
+    expect(html).toContain("Loading this interactive map contacts OpenStreetMap and may share your IP address and browser information with the provider.");
+    expect((html.match(/data-map-load="true"/g) ?? [])).toHaveLength(2);
+    expect((html.match(/data-map-region="true"/g) ?? [])).toHaveLength(2);
     expect(html).toContain('<script src="/static/about-map.js" defer=""></script>');
     expect(html).toMatch(/href="\/about" aria-current="page"/);
     expect(html).toContain('<nav aria-label="Footer navigation"><a href="/feedback">Feedback</a><a href="/reviews">Customer Reviews</a></nav>');
@@ -316,8 +319,8 @@ describe("AgentClinic routes", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toMatch(/(?:java|ecma)script/);
-    expect(script).toContain("https://www.openstreetmap.org/export/embed.html?");
-    expect(script).toContain("marker=37.7765%2C-122.3950");
+    expect(script).toContain('document.querySelectorAll("[data-map-enhancement]")');
+    expect(script).toContain("root.dataset.mapUrl");
     expect(script).toContain('document.createElement("iframe")');
     expect(script).toContain('frame.referrerPolicy = "no-referrer"');
     expect(script).toContain('frame.loading = "lazy"');

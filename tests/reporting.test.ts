@@ -63,10 +63,10 @@ describe("clinic operations reporting", () => {
       });
       const reportRange = range("2099-01-01", "2099-01-31");
       const csv = serializeAppointmentReportCsv(await listReportAppointments(db, reportRange));
-      expect(csv).toBe("Scheduled at,Agent,Therapist,Status\r\n2099-01-15T10:00,\"'=HYPERLINK(\"\"https://evil.example\"\")\",\"Dr, \"\"Quoted\"\"\",confirmed\r\n");
+      expect(csv).toBe("Scheduled at,Agent,Therapist,Site,Status\r\n2099-01-15T10:00,\"'=HYPERLINK(\"\"https://evil.example\"\")\",\"Dr, \"\"Quoted\"\"\",Context Window Clinic,confirmed\r\n");
       expect(csv).not.toContain("private@example.com");
-      expect(reportCsvFilename(reportRange)).toBe("agentclinic-appointments-2099-01-01-to-2099-01-31.csv");
-      expect(serializeAppointmentReportCsv([])).toBe("Scheduled at,Agent,Therapist,Status\r\n");
+      expect(reportCsvFilename(reportRange)).toBe("agentclinic-appointments-2099-01-01-to-2099-01-31-all-sites.csv");
+      expect(serializeAppointmentReportCsv([])).toBe("Scheduled at,Agent,Therapist,Site,Status\r\n");
     } finally {
       db.close();
     }
@@ -96,8 +96,15 @@ describe("clinic operations reporting", () => {
       expect(report.headers.get("cache-control")).toBe("no-store");
       expect(html).toContain("Total appointments");
       expect(html).toContain("Therapist workload");
+      expect(html).toContain("All sites");
       expect(html).toContain('href="/dashboard/reports" aria-current="page"');
       expect(html).not.toContain("private@example.com");
+
+      const siteReport = await app.request("/dashboard/reports?from=2099-01-01&to=2099-03-31&site=context-window-clinic", { headers: { cookie: staffCookie } });
+      expect(siteReport.status).toBe(200);
+      expect(await siteReport.text()).toContain("Context Window Clinic");
+      const invalidSite = await app.request("/dashboard/reports?from=2099-01-01&to=2099-03-31&site=unknown", { headers: { cookie: staffCookie } });
+      expect(invalidSite.status).toBe(422);
 
       const invalid = await app.request("/dashboard/reports?from=2099-03-31&to=2099-01-01", { headers: { cookie: staffCookie } });
       expect(invalid.status).toBe(422);
@@ -109,7 +116,7 @@ describe("clinic operations reporting", () => {
       const csv = await app.request("/dashboard/reports.csv?from=2099-01-01&to=2099-03-31", { headers: { cookie: staffCookie } });
       expect(csv.status).toBe(200);
       expect(csv.headers.get("content-type")).toContain("text/csv; charset=utf-8");
-      expect(csv.headers.get("content-disposition")).toContain("agentclinic-appointments-2099-01-01-to-2099-03-31.csv");
+      expect(csv.headers.get("content-disposition")).toContain("agentclinic-appointments-2099-01-01-to-2099-03-31-all-sites.csv");
       expect((await csv.text()).split("\r\n")).toHaveLength(5);
       const head = await app.request("/dashboard/reports.csv?from=2099-01-01&to=2099-03-31", { method: "HEAD", headers: { cookie: staffCookie } });
       expect(head.status).toBe(200);
