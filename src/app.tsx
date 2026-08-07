@@ -11,6 +11,7 @@ import { findAgentBySlug } from "./domain/care.js";
 import { validateFeedback, type FeedbackValues } from "./domain/feedback.js";
 import { normalizeNotificationEmail, validateNotificationContact } from "./domain/notifications.js";
 import { parseReportDateRange, reportCsvFilename, serializeAppointmentReportCsv } from "./domain/reporting.js";
+import { parseLocalMinute, parseUtcMinute, resolveLocalMinute } from "./domain/time.js";
 import { AgentPage } from "./pages/AgentPage.js";
 import { AgentDetailPage, AgentsPage, AilmentsPage, AppointmentConfirmationPage, AppointmentFormPage, DashboardPage, ErrorPage, TherapistAppointmentsPage, TherapistDirectoryPage, TherapistSchedulePage, TherapiesPage, type AppointmentErrors, type AppointmentValues } from "./pages/ClinicPages.js";
 import { HomePage } from "./pages/HomePage.js";
@@ -46,15 +47,14 @@ function validateAppointment(values: AppointmentValues): AppointmentErrors {
   return errors;
 }
 
-function validateScheduledAt(value: string, now: Date): string | undefined {
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return "Enter a valid appointment date and time.";
-  const scheduled = new Date(`${value}:00`);
-  const [date, time] = value.split("T");
-  const [year, month, day] = date.split("-").map(Number);
-  const [hour, minute] = time.split(":").map(Number);
-  const isReal = !Number.isNaN(scheduled.getTime()) && scheduled.getFullYear() === year && scheduled.getMonth() === month - 1 && scheduled.getDate() === day && scheduled.getHours() === hour && scheduled.getMinutes() === minute;
-  if (!isReal) return "Enter a real calendar date and time.";
-  if (scheduled <= now) return "Choose an appointment time in the future.";
+function validateScheduledAt(value: string, now: Date, timeZone?: string): string | undefined {
+  if (!parseLocalMinute(value)) return "Enter a real calendar date and time.";
+  if (!timeZone) return undefined;
+  const resolved = resolveLocalMinute(value, timeZone);
+  if (resolved.status === "nonexistent") return "This local time does not exist because the clock moves forward. Choose another time.";
+  if (resolved.status === "ambiguous") return "This local time occurs twice because the clock moves back. Choose another time.";
+  if (resolved.status !== "valid") return "Enter a valid appointment date and time.";
+  if (parseUtcMinute(resolved.utc)!.getTime() <= now.getTime()) return "Choose an appointment time in the future.";
   return undefined;
 }
 
@@ -278,7 +278,7 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
     const siteId = parsePositiveId(siteIdValue);
     const site = siteId ? await findActiveSiteById(db, siteId) : undefined;
     const errors: { scheduledAt?: string; siteId?: string } = {};
-    const scheduledAtError = validateScheduledAt(scheduledAt, now());
+    const scheduledAtError = validateScheduledAt(scheduledAt, now(), site?.time_zone);
     if (scheduledAtError) errors.scheduledAt = scheduledAtError;
     if (!site) errors.siteId = "Choose an active clinic site.";
     if (Object.keys(errors).length) {

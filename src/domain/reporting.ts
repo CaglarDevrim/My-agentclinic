@@ -1,4 +1,5 @@
 import type { ReportAppointmentRow, ReportDateRange } from "../db/types.js";
+import { localDateInZone } from "./time.js";
 
 export interface ReportFilterValues {
   from: string;
@@ -31,8 +32,7 @@ function formatDate(year: number, month: number, day: number): string {
 }
 
 function defaultRange(now: Date): ReportFilterValues {
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
+  const { year, month } = localDateInZone(now, "America/Los_Angeles");
   const lastDay = new Date(year, month, 0).getDate();
   return { from: formatDate(year, month, 1), to: formatDate(year, month, lastDay) };
 }
@@ -93,9 +93,9 @@ function csvCell(value: string): string {
 }
 
 export function serializeAppointmentReportCsv(rows: ReportAppointmentRow[]): string {
-  const lines = ["Scheduled at,Agent,Therapist,Site,Status"];
+  const lines = ["Scheduled at,Time zone,Scheduled at UTC,Agent,Therapist,Site,Status"];
   for (const row of rows) {
-    lines.push([row.scheduled_at, row.agent_name, row.therapist_name, row.site_name, row.status].map(csvCell).join(","));
+    lines.push([row.scheduled_at, row.site_time_zone, row.scheduled_at_utc, row.agent_name, row.therapist_name, row.site_name, row.status].map(csvCell).join(","));
   }
   return `${lines.join("\r\n")}\r\n`;
 }

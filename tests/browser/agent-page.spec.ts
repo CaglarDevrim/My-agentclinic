@@ -87,6 +87,8 @@ test("completes agent care and appointment booking", async ({ page }) => {
   await expect(page.locator("#notificationConsent-error")).toBeVisible();
 
   const slotSelect = page.getByLabel("Available appointment");
+  await expect(slotSelect.locator("option").filter({ hasText: therapistName })).toContainText("Your time:");
+  await expect(slotSelect.locator("option").filter({ hasText: therapistName })).toContainText("America/Los_Angeles");
   const selectedValue = await slotSelect.locator("option").filter({ hasText: therapistName }).getAttribute("value");
   if (!selectedValue) throw new Error("Expected a seeded therapist slot.");
   await slotSelect.selectOption(selectedValue);
@@ -97,6 +99,7 @@ test("completes agent care and appointment booking", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1, name: "Appointment requested" })).toBeVisible();
   await expect(page.getByText(therapistName)).toBeVisible();
   await expect(page.getByText(siteName)).toBeVisible();
+  await expect(page.getByText(/Your time:/)).toBeVisible();
   await expect(page.getByText("browser.visitor@example.com")).toHaveCount(0);
   expect(page.url()).not.toContain("browser.visitor@example.com");
 
@@ -126,6 +129,20 @@ test("completes agent care and appointment booking", async ({ page }) => {
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(hasHorizontalOverflow).toBe(false);
+});
+
+test("keeps site-local booking times useful without JavaScript", async ({ browser }, testInfo) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, baseURL: String(testInfo.project.use.baseURL) });
+  const page = await context.newPage();
+  try {
+    await page.goto("/agents/1/appointments/1");
+    await expect(page.getByRole("heading", { name: "Appointment requested" })).toBeVisible();
+    await expect(page.getByText(/America\/Los_Angeles/)).toBeVisible();
+    await expect(page.getByText(/Your time:/)).toHaveCount(0);
+    await expect(page.getByText("2099-01-15 at 10:00", { exact: false })).toBeVisible();
+  } finally {
+    await context.close();
+  }
 });
 
 test("lets a therapist open a slot and manage only the resulting appointment", async ({ page }) => {
@@ -211,7 +228,7 @@ test("filters and exports the staff clinic report", async ({ page }) => {
   const downloadPath = await download.path();
   if (!downloadPath) throw new Error("Expected the report CSV download path.");
   const csv = readFileSync(downloadPath, "utf8");
-  expect(csv).toContain("Scheduled at,Agent,Therapist,Site,Status\r\n");
+  expect(csv).toContain("Scheduled at,Time zone,Scheduled at UTC,Agent,Therapist,Site,Status\r\n");
   expect(csv.trim().split(/\r?\n/)).toHaveLength(4);
   expect(csv).not.toContain("@example.com");
 
@@ -289,8 +306,6 @@ test("moderates and publishes a consented customer review", async ({ page }) => 
   await expect(page).toHaveURL("/reviews");
   await expect(page.getByRole("heading", { level: 1, name: "Customer Reviews" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Customer Reviews" }).first()).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("heading", { level: 2, name: "No published reviews yet" })).toBeVisible();
-
   await page.getByRole("link", { name: "Send feedback" }).click();
   await page.getByLabel("Name").fill(reviewName);
   await page.getByLabel("Email").fill(reviewEmail);

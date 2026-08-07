@@ -33,7 +33,7 @@ describe("visitor notifications and reminders", () => {
     const db = await openDatabase();
     try {
       const logs: string[] = [];
-      const now = new Date("2099-04-08T10:00:00");
+      const now = new Date("2099-04-08T10:00:00Z");
       const app = createApp(db, { now: () => now, logger: (message) => logs.push(message) });
       const slotId = await seededSlotId(db);
       const page = await app.request("/agents/1/appointments/new");
@@ -64,7 +64,7 @@ describe("visitor notifications and reminders", () => {
   it("atomically stores normalized contact data and one eligible reminder", async () => {
     const db = await openDatabase();
     try {
-      const now = new Date("2099-04-08T09:59:00");
+      const now = new Date("2099-04-08T09:59:00Z");
       const result = await createAppointmentFromSlot(db, {
         agentId: 1,
         slotId: await seededSlotId(db),
@@ -78,14 +78,14 @@ describe("visitor notifications and reminders", () => {
         args: [result.appointmentId],
       })).rows[0];
       expect(appointment.notification_email).toBe("Visitor.Name@example.com");
-      expect(appointment.notification_consent_at).toBe("2099-04-08T09:59");
+      expect(appointment.notification_consent_at).toBe("2099-04-08T09:59Z");
       const events = (await db.execute({
-        sql: "SELECT event_kind, scheduled_for FROM notification_outbox WHERE appointment_id = ? ORDER BY event_kind",
+        sql: "SELECT event_kind, scheduled_for, scheduled_for_utc FROM notification_outbox WHERE appointment_id = ? ORDER BY event_kind",
         args: [result.appointmentId],
       })).rows;
       expect(events).toEqual([
-        expect.objectContaining({ event_kind: "appointment_created", scheduled_for: "2099-04-08T09:59" }),
-        expect.objectContaining({ event_kind: "appointment_reminder_24h", scheduled_for: "2099-04-09T10:00" }),
+        expect.objectContaining({ event_kind: "appointment_created", scheduled_for: "2099-04-08T02:59", scheduled_for_utc: "2099-04-08T09:59Z" }),
+        expect.objectContaining({ event_kind: "appointment_reminder_24h", scheduled_for: "2099-04-09T10:00", scheduled_for_utc: "2099-04-09T17:00Z" }),
       ]);
     } finally {
       db.close();
@@ -98,7 +98,7 @@ describe("visitor notifications and reminders", () => {
       const result = await createAppointmentFromSlot(db, {
         agentId: 1,
         slotId: await seededSlotId(db),
-        now: new Date("2099-04-09T10:00:00"),
+        now: new Date("2099-04-09T17:00:00Z"),
         notificationEmail: "visitor@example.com",
       });
       expect(result.status).toBe("created");
@@ -115,14 +115,14 @@ describe("visitor notifications and reminders", () => {
       const booking = await createAppointmentFromSlot(db, {
         agentId: 1,
         slotId: await seededSlotId(db),
-        now: new Date("2099-04-08T10:00:00"),
+        now: new Date("2099-04-08T10:00:00Z"),
         notificationEmail: "visitor@example.com",
       });
       if (booking.status !== "created") throw new Error("Expected booking creation.");
-      await expect(confirmAppointment(db, booking.appointmentId, undefined, new Date("2099-04-08T11:00:00"))).resolves.toBe("updated");
-      await expect(confirmAppointment(db, booking.appointmentId, undefined, new Date("2099-04-08T11:01:00"))).resolves.toBe("unchanged");
-      await expect(cancelAppointment(db, booking.appointmentId, undefined, new Date("2099-04-08T12:00:00"))).resolves.toBe("updated");
-      await expect(cancelAppointment(db, booking.appointmentId, undefined, new Date("2099-04-08T12:01:00"))).resolves.toBe("unchanged");
+      await expect(confirmAppointment(db, booking.appointmentId, undefined, new Date("2099-04-08T11:00:00Z"))).resolves.toBe("updated");
+      await expect(confirmAppointment(db, booking.appointmentId, undefined, new Date("2099-04-08T11:01:00Z"))).resolves.toBe("unchanged");
+      await expect(cancelAppointment(db, booking.appointmentId, undefined, new Date("2099-04-08T12:00:00Z"))).resolves.toBe("updated");
+      await expect(cancelAppointment(db, booking.appointmentId, undefined, new Date("2099-04-08T12:01:00Z"))).resolves.toBe("unchanged");
 
       const events = (await db.execute({
         sql: "SELECT event_kind, state, COUNT(*) AS count FROM notification_outbox WHERE appointment_id = ? GROUP BY event_kind, state ORDER BY event_kind",
@@ -142,7 +142,7 @@ describe("visitor notifications and reminders", () => {
   it("processes due work once and retries a failed preview on the next run", async () => {
     const db = await openDatabase();
     try {
-      const now = new Date("2099-04-08T10:00:00");
+      const now = new Date("2099-04-08T10:00:00Z");
       const booking = await createAppointmentFromSlot(db, {
         agentId: 1,
         slotId: await seededSlotId(db),
@@ -181,10 +181,13 @@ describe("visitor notifications and reminders", () => {
       event_kind: "appointment_created",
       recipient_email: "visitor@example.com",
       scheduled_for: "2099-04-08T10:00",
+      scheduled_for_utc: "2099-04-08T17:00Z",
       attempt_count: 1,
       agent_name: "<script>alert(1)</script>",
       therapist_name: "Dr & Co",
       appointment_scheduled_at: "2099-04-10T10:00",
+      appointment_scheduled_at_utc: "2099-04-10T17:00Z",
+      site_time_zone: "America/Los_Angeles",
       site_name: "Context Window Clinic",
       site_address: "42 Context Window Way, San Francisco, CA 94107",
     });
@@ -202,10 +205,13 @@ describe("visitor notifications and reminders", () => {
       event_kind: "appointment_reminder_24h",
       recipient_email: "private.visitor@example.com",
       scheduled_for: "2099-04-09T10:00",
+      scheduled_for_utc: "2099-04-09T17:00Z",
       attempt_count: 1,
       agent_name: "Bartholomew-47B",
       therapist_name: "Dr Evelyn Watts",
       appointment_scheduled_at: "2099-04-10T10:00",
+      appointment_scheduled_at_utc: "2099-04-10T17:00Z",
+      site_time_zone: "America/Los_Angeles",
       site_name: "Context Window Clinic",
       site_address: "42 Context Window Way, San Francisco, CA 94107",
     };

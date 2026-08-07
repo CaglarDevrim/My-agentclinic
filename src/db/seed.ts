@@ -1,6 +1,7 @@
 import type { InStatement } from "@libsql/client";
 
 import type { ClinicDatabase } from "./index.js";
+import { resolveLegacyLocalMinute } from "../domain/time.js";
 
 const agents = [
   [1, "Bartholomew-47B", "GPT-47B", "active", "A thoughtful language agent learning to work comfortably within finite context."],
@@ -40,6 +41,7 @@ const appointments = [
 ] as const;
 
 export async function seedDatabase(db: ClinicDatabase): Promise<void> {
+  const zone = "America/Los_Angeles";
   const statements: InStatement[] = [
     ...agents.map((args) => ({ sql: "INSERT INTO agents (id, name, model, status, description) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, model = excluded.model, status = excluded.status, description = excluded.description", args: [...args] })),
     ...ailments.map((args) => ({ sql: "INSERT INTO ailments (id, name, description) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description", args: [...args] })),
@@ -48,10 +50,10 @@ export async function seedDatabase(db: ClinicDatabase): Promise<void> {
     ...ailmentTherapies.map((args) => ({ sql: "INSERT OR IGNORE INTO ailment_therapies (ailment_id, therapy_id) VALUES (?, ?)", args: [...args] })),
     { sql: "INSERT OR IGNORE INTO therapists (normalized_name, display_name) VALUES ('dr evelyn watts', 'Dr Evelyn Watts')", args: [] },
     { sql: "INSERT OR IGNORE INTO therapists (normalized_name, display_name) VALUES ('dr marcus chen', 'Dr Marcus Chen')", args: [] },
-    ...appointments.map((args) => ({ sql: "INSERT OR IGNORE INTO appointments (id, agent_id, therapist_name, scheduled_at, status, site_id) VALUES (?, ?, ?, ?, ?, 1)", args: [...args] })),
+    ...appointments.map((args) => ({ sql: "INSERT OR IGNORE INTO appointments (id, agent_id, therapist_name, scheduled_at, status, site_id, scheduled_at_utc) VALUES (?, ?, ?, ?, ?, 1, ?)", args: [...args, resolveLegacyLocalMinute(args[3], zone)] })),
     { sql: "UPDATE appointments SET therapist_id = (SELECT id FROM therapists WHERE normalized_name = lower(trim(appointments.therapist_name))) WHERE therapist_id IS NULL", args: [] },
-    { sql: "INSERT OR IGNORE INTO therapist_slots (therapist_id, scheduled_at, site_id) SELECT id, '2099-04-10T10:00', 1 FROM therapists WHERE normalized_name = 'dr evelyn watts'", args: [] },
-    { sql: "INSERT OR IGNORE INTO therapist_slots (therapist_id, scheduled_at, site_id) SELECT id, '2099-04-11T14:30', 2 FROM therapists WHERE normalized_name = 'dr marcus chen'", args: [] },
+    { sql: "INSERT OR IGNORE INTO therapist_slots (therapist_id, scheduled_at, site_id, scheduled_at_utc) SELECT id, '2099-04-10T10:00', 1, ? FROM therapists WHERE normalized_name = 'dr evelyn watts'", args: [resolveLegacyLocalMinute("2099-04-10T10:00", zone)] },
+    { sql: "INSERT OR IGNORE INTO therapist_slots (therapist_id, scheduled_at, site_id, scheduled_at_utc) SELECT id, '2099-04-11T14:30', 2, ? FROM therapists WHERE normalized_name = 'dr marcus chen'", args: [resolveLegacyLocalMinute("2099-04-11T14:30", zone)] },
   ];
   await db.batch(statements, "write");
 }

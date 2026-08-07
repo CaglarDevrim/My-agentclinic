@@ -25,7 +25,7 @@ describe("clinic database", () => {
     const db = await openDatabase();
     await migrateDatabase(db);
     await seedDatabase(db);
-    expect(Number((await db.execute("SELECT COUNT(*) AS count FROM schema_migrations")).rows[0].count)).toBe(14);
+    expect(Number((await db.execute("SELECT COUNT(*) AS count FROM schema_migrations")).rows[0].count)).toBe(15);
     expect(await listAgents(db)).toHaveLength(6);
     expect(await listAilments(db)).toHaveLength(6);
     expect(await listTherapies(db)).toHaveLength(8);
@@ -35,7 +35,7 @@ describe("clinic database", () => {
       expect.objectContaining({ id: 2, slug: "token-harbor-clinic", name: "Token Harbor Clinic" }),
     ]);
     expect((await db.execute("SELECT DISTINCT site_id FROM appointments")).rows).toEqual([{ site_id: 1 }]);
-    await expect(db.execute("INSERT INTO therapist_slots (therapist_id, scheduled_at, site_id) VALUES (1, '2099-12-01T10:00', 999)")).rejects.toThrow(/invalid therapist slot site/i);
+    await expect(db.execute("INSERT INTO therapist_slots (therapist_id, scheduled_at, scheduled_at_utc, site_id) VALUES (1, '2099-12-01T10:00', '2099-12-01T18:00Z', 999)")).rejects.toThrow(/invalid therapist slot site/i);
     expect((await findAgent(db, 1))?.therapies.map((item) => item.name)).toContain("Mindful Token Counting");
     db.close();
   });
@@ -62,8 +62,8 @@ describe("clinic database", () => {
     await expect(createAppointment(db, { agentId: 2, therapistName: "  dr slot  ", scheduledAt: "2099-10-10T10:00" })).resolves.toEqual({ status: "conflict" });
     await expect(createAppointment(db, { agentId: 2, therapistName: "Dr Other", scheduledAt: "2099-10-10T10:00" })).resolves.toMatchObject({ status: "created" });
     await expect(db.execute({
-      sql: "INSERT INTO appointments (agent_id, therapist_name, scheduled_at, status) VALUES (?, ?, ?, 'confirmed')",
-      args: [3, "DR SLOT", "2099-10-10T10:00"],
+      sql: "INSERT INTO appointments (agent_id, therapist_name, scheduled_at, scheduled_at_utc, status) VALUES (?, ?, ?, ?, 'confirmed')",
+      args: [3, "DR SLOT", "2099-10-10T10:00", "2099-10-10T17:00Z"],
     })).rejects.toThrow(/UNIQUE constraint failed/i);
 
     expect(await confirmAppointment(db, first.appointmentId)).toBe("updated");

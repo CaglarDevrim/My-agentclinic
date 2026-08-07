@@ -8,6 +8,7 @@ type LayoutProps = PropsWithChildren<{
   title?: string;
   activePath?: ActiveSection;
   staff?: StaffHeaderContext;
+  visitorTime?: boolean;
 }>;
 
 export function Layout({
@@ -15,6 +16,7 @@ export function Layout({
   title = "AgentClinic",
   activePath = "/",
   staff,
+  visitorTime = false,
 }: LayoutProps) {
   return (
     <html lang="en">
@@ -23,6 +25,7 @@ export function Layout({
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{title}</title>
         <link rel="stylesheet" href="/static/style.css" />
+        {visitorTime && <script src="/static/visitor-time.js" defer></script>}
       </head>
       <body>
         <Header activePath={activePath} staff={staff} />

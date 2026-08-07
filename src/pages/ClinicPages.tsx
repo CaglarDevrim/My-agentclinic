@@ -26,9 +26,9 @@ function StatusText({ status }: { status: keyof typeof statusLabels }) {
   return <span class={`status status--${status}`}>{statusLabels[status]}</span>;
 }
 
-function formatAppointment(value: string): string {
+function formatAppointment(value: string, timeZone?: string): string {
   const [date, time = ""] = value.split("T");
-  return `${date} at ${time}`;
+  return `${date} at ${time}${timeZone ? ` (${timeZone})` : ""}`;
 }
 
 function PageHeading({ title, description }: { title: string; description?: string }) {
@@ -183,7 +183,7 @@ export function AppointmentFormPage({
 }) {
   const hasErrors = Object.keys(errors).length > 0;
   return (
-    <Layout title={`Book ${agent.name} | AgentClinic`} activePath="/agents">
+    <Layout title={`Book ${agent.name} | AgentClinic`} activePath="/agents" visitorTime>
       <div class="form-shell">
         <PageHeading title={`Book care for ${agent.name}`} description="Choose one of the clinic's available therapist times." />
         {hasErrors && (
@@ -196,7 +196,7 @@ export function AppointmentFormPage({
           <label for="slotId">Available appointment</label>
           <select id="slotId" name="slotId" required aria-invalid={errors.slotId ? "true" : undefined} aria-describedby={errors.slotId ? "slotId-error" : "slotId-hint"}>
             <option value="">Choose an available time</option>
-            {slots.map((slot) => <option value={slot.id} selected={values.slotId === String(slot.id)}>{slot.therapist_name} — {formatAppointment(slot.scheduled_at)} — {slot.site_name}, {slot.site_address}</option>)}
+            {slots.map((slot) => <option value={slot.id} selected={values.slotId === String(slot.id)} data-visitor-time-option data-utc={slot.scheduled_at_utc}>{slot.therapist_name} — {formatAppointment(slot.scheduled_at, slot.site_time_zone)} — {slot.site_name}, {slot.site_address}</option>)}
           </select>
           <p class="field-hint" id="slotId-hint">Only currently available future times are shown.</p>
           {errors.slotId && <p class="field-error" id="slotId-error">{errors.slotId}</p>}
@@ -222,7 +222,7 @@ export function AppointmentFormPage({
 
 export function AppointmentConfirmationPage({ appointment }: { appointment: AppointmentRecord }) {
   return (
-    <Layout title="Appointment confirmed | AgentClinic" activePath="/agents">
+    <Layout title="Appointment confirmed | AgentClinic" activePath="/agents" visitorTime>
       <article class="confirmation">
         <p class="confirmation__mark" aria-hidden="true">✓</p>
         <h1>Appointment requested</h1>
@@ -230,7 +230,7 @@ export function AppointmentConfirmationPage({ appointment }: { appointment: Appo
         <dl class="appointment-details">
           <div><dt>Agent</dt><dd>{appointment.agent_name}</dd></div>
           <div><dt>Therapist</dt><dd>{appointment.therapist_name}</dd></div>
-          <div><dt>When</dt><dd>{formatAppointment(appointment.scheduled_at)}</dd></div>
+          <div><dt>When</dt><dd data-visitor-time data-utc={appointment.scheduled_at_utc}>{formatAppointment(appointment.scheduled_at, appointment.site_time_zone)}</dd></div>
           <div><dt>Site</dt><dd>{appointment.site_name}</dd></div>
           <div><dt>Address</dt><dd>{appointment.site_address}</dd></div>
           <div><dt>Status</dt><dd><StatusText status={appointment.status} /></dd></div>
@@ -278,7 +278,7 @@ export function DashboardPage({ data, staff, sites = [], selectedSiteSlug = "", 
             <th scope="row" data-label="Agent"><a href={`/agents/${appointment.agent_id}`}>{appointment.agent_name}</a></th>
             <td data-label="Therapist">{appointment.therapist_name}</td>
             <td data-label="Site"><strong>{appointment.site_name}</strong><br />{appointment.site_address}</td>
-            <td data-label="When">{formatAppointment(appointment.scheduled_at)}</td>
+            <td data-label="When">{formatAppointment(appointment.scheduled_at, appointment.site_time_zone)}</td>
             <td data-label="Status"><StatusText status={appointment.status} /></td>
             <td data-label="Actions">
               <div class="appointment-actions">
@@ -334,22 +334,22 @@ export function TherapistSchedulePage({ slots, sites, staff, values = { schedule
         <label for="siteId">Clinic site</label>
         <select id="siteId" name="siteId" required value={values.siteId} aria-invalid={errors.siteId ? "true" : undefined} aria-describedby={errors.siteId ? "siteId-error" : "siteId-hint"}>
           <option value="">Choose a clinic site</option>
-          {sites.map((site) => <option value={site.id}>{site.name} — {site.address}</option>)}
+          {sites.map((site) => <option value={site.id}>{site.name} — {site.address} — {site.time_zone}</option>)}
         </select>
-        <p class="field-hint" id="siteId-hint">Choose where this appointment will take place.</p>
+        <p class="field-hint" id="siteId-hint">Choose where this appointment will take place; the time below uses that site's named time zone.</p>
         {errors.siteId && <p class="field-error" id="siteId-error">{errors.siteId}</p>}
         <label for="scheduledAt">Future appointment time</label>
         <input id="scheduledAt" name="scheduledAt" type="datetime-local" value={values.scheduledAt} aria-invalid={errors.scheduledAt ? "true" : undefined} aria-describedby={errors.scheduledAt ? "scheduledAt-error" : "scheduledAt-hint"} />
-        <p class="field-hint" id="scheduledAt-hint">Times use the clinic's local clock.</p>
+        <p class="field-hint" id="scheduledAt-hint">Enter a local wall-clock time for the selected clinic site. Daylight-saving gaps and repeated times are not accepted.</p>
         {errors.scheduledAt && <p class="field-error" id="scheduledAt-error">{errors.scheduledAt}</p>}
         <p class="page-actions"><button class="button" type="submit">Open appointment time</button><a class="button button--secondary" href="/dashboard/appointments">My appointments</a></p>
       </form>
       <DashboardTable title="Upcoming times" headers={["When", "Site", "State", "Actions"]}>
         {slots.length ? slots.map((slot) => <tr>
-          <th scope="row" data-label="When">{formatAppointment(slot.scheduled_at)}</th>
+          <th scope="row" data-label="When">{formatAppointment(slot.scheduled_at, slot.site_time_zone)}</th>
           <td data-label="Site"><strong>{slot.site_name}</strong><br />{slot.site_address}</td>
           <td data-label="State">{slot.is_occupied === 1 ? "Occupied" : "Available"}</td>
-          <td data-label="Actions">{slot.is_occupied === 1 ? "Booked times cannot be removed." : <form method="post" action={`/dashboard/schedule/slots/${slot.id}/remove`}><input type="hidden" name="_csrf" value={staff.csrfToken} /><button class="button button--secondary button--compact" type="submit" aria-label={`Remove appointment time ${formatAppointment(slot.scheduled_at)}`}>Remove</button></form>}</td>
+          <td data-label="Actions">{slot.is_occupied === 1 ? "Booked times cannot be removed." : <form method="post" action={`/dashboard/schedule/slots/${slot.id}/remove`}><input type="hidden" name="_csrf" value={staff.csrfToken} /><button class="button button--secondary button--compact" type="submit" aria-label={`Remove appointment time ${formatAppointment(slot.scheduled_at, slot.site_time_zone)}`}>Remove</button></form>}</td>
         </tr>) : <tr class="empty-row"><td colspan={4}>No upcoming appointment times.</td></tr>}
       </DashboardTable>
     </Layout>
@@ -365,7 +365,7 @@ export function TherapistAppointmentsPage({ appointments, staff }: { appointment
         {appointments.length ? appointments.map((appointment) => <tr>
           <th scope="row" data-label="Agent"><a href={`/agents/${appointment.agent_id}`}>{appointment.agent_name}</a></th>
           <td data-label="Site"><strong>{appointment.site_name}</strong><br />{appointment.site_address}</td>
-          <td data-label="When">{formatAppointment(appointment.scheduled_at)}</td>
+          <td data-label="When">{formatAppointment(appointment.scheduled_at, appointment.site_time_zone)}</td>
           <td data-label="Status"><StatusText status={appointment.status} /></td>
           <td data-label="Actions"><div class="appointment-actions">
             {appointment.status === "pending" && <form method="post" action={`/dashboard/appointments/${appointment.id}/confirm`}><input type="hidden" name="_csrf" value={staff.csrfToken} /><button class="button button--compact" type="submit" aria-label={`Confirm appointment for ${appointment.agent_name}`}>Confirm</button></form>}
