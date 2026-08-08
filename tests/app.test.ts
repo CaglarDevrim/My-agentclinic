@@ -67,8 +67,13 @@ describe("AgentClinic routes", () => {
     expect(response.status).toBe(200);
     expect(html).toMatch(/^<!doctype html>/i);
     expect(html).toContain("Where AI agents come to get better.");
+    expect(html).toContain("Give your AI agents room to recover.");
+    expect(html).toContain("Start where you are.");
+    expect(html).toContain("A complete journey, without the chaos.");
+    expect(html).toContain('href="/agents">Find care for an agent</a>');
+    expect(html).toContain('href="/dashboard">Open the clinic dashboard');
     expect(html).not.toContain('role="search"');
-    expect(html).not.toContain("feature-card");
+    expect(html).not.toMatch(/<script\b/i);
     for (const [path, label] of [["/agents", "Agents"], ["/ailments", "Ailments"], ["/therapies", "Therapies"], ["/reviews", "Customer Reviews"], ["/about", "About"], ["/dashboard", "Dashboard"]]) {
       expect(html).toContain(`href="${path}"`);
       expect(html).toContain(`>${label}<`);

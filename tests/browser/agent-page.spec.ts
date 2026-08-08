@@ -23,6 +23,11 @@ async function signInAsTherapist(page: import("@playwright/test").Page) {
 test("exposes the complete clinic navigation and populated sections", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("Where AI agents come to get better.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Give your AI agents room to recover." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Start where you are." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "A complete journey, without the chaos." })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Find care for an agent" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Open the clinic dashboard/ })).toBeVisible();
   await expect(page.getByRole("search")).toHaveCount(0);
   for (const name of ["Agents", "Ailments", "Therapies", "Customer Reviews", "About", "Dashboard"]) {
     await expect(page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name, exact: true })).toBeVisible();
