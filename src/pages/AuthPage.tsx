@@ -25,6 +25,7 @@ export function LoginPage({
     <Layout title="Staff login | AgentClinic">
       <div class="form-shell login-page">
         <header class="page-heading">
+          <p class="page-eyebrow">Secure clinic access</p>
           <h1>Staff login</h1>
           <p>Sign in to manage appointments, reviews, and clinic activity.</p>
         </header>

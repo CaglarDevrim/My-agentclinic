@@ -244,8 +244,8 @@ export function AppointmentFormPage({
   const hasErrors = Object.keys(errors).length > 0;
   return (
     <Layout title={`Book ${agent.name} | AgentClinic`} activePath="/agents" visitorTime>
-      <div class="form-shell">
-        <PageHeading title={`Book care for ${agent.name}`} description="Choose one of the clinic's available therapist times." />
+      <div class="form-shell booking-shell">
+        <PageHeading eyebrow="Appointment request" title={`Book care for ${agent.name}`} description="Choose one of the clinic's available therapist times." />
         {hasErrors && (
           <div class="error-summary" role="alert" tabIndex={-1} autofocus>
             <h2>Please correct the following</h2>
@@ -285,6 +285,7 @@ export function AppointmentConfirmationPage({ appointment }: { appointment: Appo
     <Layout title="Appointment confirmed | AgentClinic" activePath="/agents" visitorTime>
       <article class="confirmation">
         <p class="confirmation__mark" aria-hidden="true">✓</p>
+        <p class="page-eyebrow">Care time reserved</p>
         <h1>Appointment requested</h1>
         <p>AgentClinic has saved the following care appointment.</p>
         <dl class="appointment-details">
@@ -307,8 +308,9 @@ export function AppointmentConfirmationPage({ appointment }: { appointment: Appo
 export function DashboardPage({ data, staff, sites = [], selectedSiteSlug = "", siteError }: { data: DashboardData; staff: StaffHeaderContext; sites?: ClinicSite[]; selectedSiteSlug?: string; siteError?: string }) {
   return (
     <Layout title="Dashboard | AgentClinic" activePath="/dashboard" staff={staff}>
-      <PageHeading title="Dashboard" />
-      <p class="page-actions"><a class="button button--secondary" href="/dashboard/therapists">View therapists</a><a class="button button--secondary" href="/dashboard/reports">View reports</a></p>
+      <div class="operations-page">
+      <PageHeading eyebrow="Clinic operations" title="Dashboard" description="Keep appointments, demand, and the care team in view from one dependable workspace." />
+      <p class="page-actions operations-actions"><a class="button button--secondary" href="/dashboard/therapists">View therapists</a><a class="button button--secondary" href="/dashboard/reports">View reports</a></p>
       {siteError && <div class="error-summary" role="alert" tabIndex={-1} autofocus><h2>Check the site filter</h2><p><a href="#site">{siteError}</a></p></div>}
       <form class="appointment-form site-filter" method="get" action="/dashboard" noValidate>
         <label for="site">Appointment site</label>
@@ -360,6 +362,7 @@ export function DashboardPage({ data, staff, sites = [], selectedSiteSlug = "", 
       <DashboardTable title="Ailment workload" headers={["Ailment", "Affected agents"]}>
         {data.ailments.map((ailment) => <tr><th scope="row" data-label="Ailment">{ailment.name}</th><td data-label="Affected agents">{ailment.agent_count}</td></tr>)}
       </DashboardTable>
+      </div>
     </Layout>
   );
 }
@@ -367,7 +370,8 @@ export function DashboardPage({ data, staff, sites = [], selectedSiteSlug = "", 
 export function TherapistDirectoryPage({ therapists, staff }: { therapists: TherapistSummary[]; staff: StaffHeaderContext }) {
   return (
     <Layout title="Therapists | AgentClinic" activePath="/dashboard" staff={staff}>
-      <PageHeading title="Therapists" description="Review therapist profiles, linked accounts, and upcoming availability." />
+      <div class="operations-page">
+      <PageHeading eyebrow="Care team" title="Therapists" description="Review therapist profiles, linked accounts, and upcoming availability." />
       <DashboardTable title="Therapist directory" headers={["Therapist", "Account", "Status", "Upcoming slots"]}>
         {therapists.length ? therapists.map((therapist) => <tr>
           <th scope="row" data-label="Therapist">{therapist.display_name}</th>
@@ -377,6 +381,7 @@ export function TherapistDirectoryPage({ therapists, staff }: { therapists: Ther
         </tr>) : <tr class="empty-row"><td colspan={4}>No therapist profiles.</td></tr>}
       </DashboardTable>
       <p class="page-actions"><a class="button button--secondary" href="/dashboard">Back to dashboard</a></p>
+      </div>
     </Layout>
   );
 }
@@ -387,7 +392,8 @@ export interface ScheduleErrors { scheduledAt?: string; siteId?: string; }
 export function TherapistSchedulePage({ slots, sites, staff, values = { scheduledAt: "", siteId: "" }, errors = {} }: { slots: TherapistSlot[]; sites: ClinicSite[]; staff: StaffHeaderContext; values?: ScheduleValues; errors?: ScheduleErrors }) {
   return (
     <Layout title="My schedule | AgentClinic" activePath="/dashboard" staff={staff}>
-      <PageHeading title="My schedule" description="Open individual future times for agents to book." />
+      <div class="operations-page">
+      <PageHeading eyebrow="Availability planning" title="My schedule" description="Open individual future times for agents to book." />
       {Object.keys(errors).length > 0 && <div class="error-summary" role="alert" tabIndex={-1} autofocus><h2>Check the appointment time</h2><ul>{Object.entries(errors).map(([field, message]) => <li><a href={`#${field}`}>{message}</a></li>)}</ul></div>}
       <form class="appointment-form schedule-form" method="post" action="/dashboard/schedule/slots" noValidate>
         <input type="hidden" name="_csrf" value={staff.csrfToken} />
@@ -412,6 +418,7 @@ export function TherapistSchedulePage({ slots, sites, staff, values = { schedule
           <td data-label="Actions">{slot.is_occupied === 1 ? "Booked times cannot be removed." : <form method="post" action={`/dashboard/schedule/slots/${slot.id}/remove`}><input type="hidden" name="_csrf" value={staff.csrfToken} /><button class="button button--secondary button--compact" type="submit" aria-label={`Remove appointment time ${formatAppointment(slot.scheduled_at, slot.site_time_zone)}`}>Remove</button></form>}</td>
         </tr>) : <tr class="empty-row"><td colspan={4}>No upcoming appointment times.</td></tr>}
       </DashboardTable>
+      </div>
     </Layout>
   );
 }
@@ -419,7 +426,8 @@ export function TherapistSchedulePage({ slots, sites, staff, values = { schedule
 export function TherapistAppointmentsPage({ appointments, staff }: { appointments: AppointmentRecord[]; staff: StaffHeaderContext }) {
   return (
     <Layout title="My appointments | AgentClinic" activePath="/dashboard" staff={staff}>
-      <PageHeading title="My appointments" description="Review and manage appointments assigned to you." />
+      <div class="operations-page">
+      <PageHeading eyebrow="Care queue" title="My appointments" description="Review and manage appointments assigned to you." />
       <p class="page-actions"><a class="button button--secondary" href="/dashboard/schedule">My schedule</a></p>
       <DashboardTable title="Open appointments" headers={["Agent", "Site", "When", "Status", "Actions"]}>
         {appointments.length ? appointments.map((appointment) => <tr>
@@ -433,6 +441,7 @@ export function TherapistAppointmentsPage({ appointments, staff }: { appointment
           </div></td>
         </tr>) : <tr class="empty-row"><td colspan={5}>No open appointments.</td></tr>}
       </DashboardTable>
+      </div>
     </Layout>
   );
 }
@@ -450,7 +459,7 @@ export function ErrorPage({ status, title, message, staff }: { status: 403 | 404
   return (
     <Layout title={`${status} ${title} | AgentClinic`} staff={staff}>
       <section class="error-page">
-        <p class="error-code">{status}</p><h1>{title}</h1><p>{message}</p>
+        <p class="error-code">{status}</p><p class="page-eyebrow">Clinic navigation</p><h1>{title}</h1><p>{message}</p>
         <p class="page-actions"><a class="button" href="/">Return home</a><a class="button button--secondary" href="/agents">Browse agents</a></p>
       </section>
     </Layout>

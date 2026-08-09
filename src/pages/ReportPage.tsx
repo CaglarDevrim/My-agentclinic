@@ -16,7 +16,9 @@ export function ClinicReportPage({ report, values, errors = {}, staff, sites, se
   const csvHref = report ? `/dashboard/reports.csv?from=${encodeURIComponent(report.range.from)}&to=${encodeURIComponent(report.range.to)}${selectedSiteSlug ? `&site=${encodeURIComponent(selectedSiteSlug)}` : ""}` : undefined;
   return (
     <Layout title="Reports | AgentClinic" activePath="/dashboard/reports" staff={staff}>
+      <div class="operations-page">
       <header class="page-heading">
+        <p class="page-eyebrow">Operational insight</p>
         <h1>Clinic reports</h1>
         <p>Review appointment activity by scheduled date.</p>
       </header>
@@ -73,6 +75,7 @@ export function ClinicReportPage({ report, values, errors = {}, staff, sites, se
           </ReportTable>
         </section>
       )}
+      </div>
     </Layout>
   );
 }

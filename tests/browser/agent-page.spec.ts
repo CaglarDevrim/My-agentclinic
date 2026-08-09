@@ -80,6 +80,8 @@ test("exposes the complete clinic navigation and populated sections", async ({ p
   await page.getByRole("navigation").getByRole("link", { name: "Dashboard", exact: true }).click();
   await signInAsStaff(page);
   await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+  await expect(page.getByText("Clinic operations", { exact: true })).toBeVisible();
+  await expect(page.locator(".operations-page")).toBeVisible();
   await expect(page.getByText("Total agents", { exact: true })).toBeVisible();
   await expect(page.getByText("Signed in as", { exact: false })).toContainText("Browser Staff");
 
@@ -249,6 +251,7 @@ test("filters and exports the staff clinic report", async ({ page }) => {
   await page.getByRole("link", { name: "Reports", exact: true }).click();
   await expect(page).toHaveURL("/dashboard/reports");
   await expect(page.getByRole("heading", { level: 1, name: "Clinic reports" })).toBeVisible();
+  await expect(page.getByText("Operational insight", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Reports", exact: true })).toHaveAttribute("aria-current", "page");
 
   await page.getByLabel("From date").fill("2099-01-01");
@@ -308,6 +311,8 @@ test("submits private feedback through an accessible responsive journey", async 
   await page.getByRole("navigation", { name: "Footer navigation" }).getByRole("link", { name: "Feedback" }).click();
   await expect(page).toHaveURL("/feedback");
   await expect(page.getByRole("heading", { level: 1, name: "Feedback" })).toBeVisible();
+  await expect(page.getByText("Help us improve", { exact: true })).toBeVisible();
+  await expect(page.locator(".feedback-form")).toBeVisible();
   await expect(page.getByRole("checkbox", { name: /public customer review/i })).not.toBeChecked();
 
   await page.getByRole("button", { name: "Send feedback" }).click();
@@ -346,6 +351,7 @@ test("moderates and publishes a consented customer review", async ({ page }) => 
   await reviewsNavigation.click();
   await expect(page).toHaveURL("/reviews");
   await expect(page.getByRole("heading", { level: 1, name: "Customer Reviews" })).toBeVisible();
+  await expect(page.getByText("Shared recovery notes", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Customer Reviews" }).first()).toHaveAttribute("aria-current", "page");
   await page.getByRole("link", { name: "Send feedback" }).click();
   await page.getByLabel("Name").fill(reviewName);
@@ -406,6 +412,7 @@ test("loads the fictional clinic map only after explicit consent", async ({ page
   await expect(page).toHaveURL("/about");
   await expect(page).toHaveTitle("About | AgentClinic");
   await expect(page.getByRole("heading", { level: 1, name: "About AgentClinic" })).toBeVisible();
+  await expect(page.locator(".about-intro")).toBeVisible();
   for (const heading of ["Our mission", "Who we serve", "Core services", "Visit AgentClinic"]) {
     await expect(page.getByRole("heading", { level: 2, name: heading })).toBeVisible();
   }
@@ -475,6 +482,7 @@ test("protects staff pages with accessible login and revocable logout", async ({
   await page.goto("/dashboard/reviews");
   await expect(page).toHaveURL(/\/login\?returnTo=%2Fdashboard%2Freviews$/);
   await expect(page.getByRole("heading", { level: 1, name: "Staff login" })).toBeVisible();
+  await expect(page.getByText("Secure clinic access", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Email address")).toBeFocused();
 
   await page.getByLabel("Email address").fill(staffEmail);

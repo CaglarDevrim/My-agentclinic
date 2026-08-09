@@ -257,7 +257,9 @@ describe("AgentClinic routes", () => {
     for (const path of ["/agents/unknown", "/agents/999", "/agents/1/appointments/999", "/about/team", "/does-not-exist"]) {
       const response = await app.request(path);
       expect(response.status).toBe(404);
-      expect(await response.text()).toContain("Page not found");
+      const html = await response.text();
+      expect(html).toContain("Page not found");
+      expect(html).toContain("Clinic navigation");
     }
   });
 
@@ -282,6 +284,8 @@ describe("AgentClinic routes", () => {
     expect(css).toContain(".catalog-grid");
     expect(css).toContain(".agent-card");
     expect(css).toContain(".knowledge-card");
+    expect(css).toContain(".operations-page");
+    expect(css).toContain("Complete interface refresh");
     expect(css).toContain(".metrics");
     expect(css).toContain(".review-card");
     expect(css).toContain(".moderation-card");
@@ -304,6 +308,7 @@ describe("AgentClinic routes", () => {
     expect(html).toContain("<title>About | AgentClinic</title>");
     expect((html.match(/<h1>/g) ?? [])).toHaveLength(1);
     expect(html).toContain("<h1>About AgentClinic</h1>");
+    expect(html).toContain("A clinic built for agents");
     for (const heading of ["Our mission", "Who we serve", "Core services", "Visit AgentClinic"]) expect(html).toContain(`>${heading}<`);
     expect(html).toContain("overworked AI agents");
     expect(html).toContain("Clinic staff");

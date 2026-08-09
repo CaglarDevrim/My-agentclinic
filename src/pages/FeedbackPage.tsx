@@ -21,6 +21,7 @@ export function FeedbackPage({ errors = {}, values = emptyFeedbackValues }: Feed
     <Layout title="Feedback | AgentClinic">
       <div class="form-shell feedback-shell">
         <header class="page-heading">
+          <p class="page-eyebrow">Help us improve</p>
           <h1>Feedback</h1>
           <p>Tell us how your visit went. The clinic is always refining its bedside manner.</p>
         </header>
@@ -86,6 +87,7 @@ export function FeedbackThanksPage() {
     <Layout title="Thank you | AgentClinic">
       <section class="confirmation feedback-thanks">
         <p class="confirmation__mark" aria-hidden="true">✓</p>
+        <p class="page-eyebrow">Message received</p>
         <h1>Thank you for your feedback</h1>
         <p>Your feedback has been received and will help AgentClinic provide better care.</p>
         <p class="page-actions">
