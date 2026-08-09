@@ -459,7 +459,7 @@ test("loads the fictional clinic map only after explicit consent", async ({ page
   await expect(page.locator("address").first()).toBeVisible();
   await expect(page.locator("address").last()).toBeVisible();
   await expect(mapLink).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Footer navigation" }).getByRole("link")).toHaveText(["Feedback", "Customer Reviews"]);
+  await expect(page.getByRole("navigation", { name: "Footer navigation" }).getByRole("link")).toHaveText(["Feedback", "Customer Reviews", "Demo Data Notice"]);
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(hasHorizontalOverflow).toBe(false);

@@ -2080,6 +2080,40 @@ tbody th {
   }
 }
 
+.demo-data-warning,
+.privacy-panel {
+  border: 1px solid rgb(53 167 245 / 0.24);
+  border-radius: 0.75rem;
+  background:
+    radial-gradient(circle at 100% 0%, rgb(53 167 245 / 0.1), transparent 36%),
+    var(--surface);
+}
+
+.demo-data-warning {
+  margin: 0 0 1.25rem;
+  padding: 1rem;
+  color: var(--text);
+}
+
+.privacy-page {
+  display: grid;
+  gap: 1rem;
+  max-width: 860px;
+  margin-inline: auto;
+}
+
+.privacy-panel {
+  padding: clamp(1.1rem, 4vw, 1.5rem);
+}
+
+.privacy-panel > :first-child {
+  margin-top: 0;
+}
+
+.privacy-panel > :last-child {
+  margin-bottom: 0;
+}
+
 /* Final cascade for refreshed non-discovery surfaces. */
 
 .form-shell {

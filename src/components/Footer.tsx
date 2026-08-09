@@ -6,6 +6,7 @@ export function Footer() {
         <nav aria-label="Footer navigation">
           <a href="/feedback">Feedback</a>
           <a href="/reviews">Customer Reviews</a>
+          <a href="/privacy">Demo Data Notice</a>
         </nav>
       </div>
     </footer>

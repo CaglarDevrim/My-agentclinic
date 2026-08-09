@@ -38,6 +38,7 @@ export function FeedbackPage({ errors = {}, values = emptyFeedbackValues }: Feed
         )}
 
         <form class="appointment-form feedback-form" method="post" action="/feedback" noValidate>
+          <p class="demo-data-warning"><strong>Public demo:</strong> Do not enter real or sensitive personal information. <a href="/privacy">Read the demo data notice.</a></p>
           <label for="name">Name</label>
           <input id="name" name="name" autocomplete="name" maxlength={100} value={values.name} aria-invalid={errors.name ? "true" : undefined} aria-describedby={errors.name ? "name-error" : undefined} />
           {errors.name && <p class="field-error" id="name-error">{errors.name}</p>}

@@ -10,6 +10,8 @@ import type { AgentDemand, AgentDetail, AgentRecord, AilmentRecord, AilmentSumma
 
 export type ClinicDatabase = Client;
 
+const LATEST_REQUIRED_MIGRATION = "015_timezone_coordination.sql";
+
 export interface DatabaseConfig {
   url: string;
   authToken?: string;
@@ -52,6 +54,23 @@ export async function openDatabase(value: string | DatabaseConfig = ":memory:"):
   } catch (error) {
     db.close();
     throw error;
+  }
+}
+
+export async function isDatabaseReady(db: Pick<ClinicDatabase, "execute">): Promise<boolean> {
+  try {
+    const result = await db.execute({
+      sql: `SELECT CASE WHEN
+              EXISTS (SELECT 1 FROM schema_migrations WHERE filename = ?)
+              AND EXISTS (SELECT 1 FROM sites WHERE is_active = 1)
+              AND EXISTS (SELECT 1 FROM agents)
+              AND EXISTS (SELECT 1 FROM therapists WHERE is_active = 1)
+            THEN 1 ELSE 0 END AS ready`,
+      args: [LATEST_REQUIRED_MIGRATION],
+    });
+    return Number(result.rows[0]?.ready ?? 0) === 1;
+  } catch {
+    return false;
   }
 }
 

@@ -324,7 +324,7 @@ describe("AgentClinic routes", () => {
     expect((html.match(/data-map-region="true"/g) ?? [])).toHaveLength(2);
     expect(html).toContain('<script src="/static/about-map.js" defer=""></script>');
     expect(html).toMatch(/href="\/about" aria-current="page"/);
-    expect(html).toContain('<nav aria-label="Footer navigation"><a href="/feedback">Feedback</a><a href="/reviews">Customer Reviews</a></nav>');
+    expect(html).toContain('<nav aria-label="Footer navigation"><a href="/feedback">Feedback</a><a href="/reviews">Customer Reviews</a><a href="/privacy">Demo Data Notice</a></nav>');
     expect(html).not.toMatch(/<(?:iframe|form)\b/i);
     expect(html).not.toMatch(/<script[^>]+src="https?:/i);
     expect(html).not.toMatch(/<(?:link)[^>]+rel="(?:preload|preconnect|prefetch)"/i);
@@ -357,7 +357,7 @@ describe("AgentClinic routes", () => {
     for (const label of ["Name", "Email", "Message", "Rating"]) expect(html).toContain(label);
     expect(html).toContain('name="publicConsent" type="checkbox" value="yes"');
     expect(html).not.toContain('name="publicConsent" type="checkbox" value="yes" checked');
-    expect(html).toContain('<nav aria-label="Footer navigation"><a href="/feedback">Feedback</a><a href="/reviews">Customer Reviews</a></nav>');
+    expect(html).toContain('<nav aria-label="Footer navigation"><a href="/feedback">Feedback</a><a href="/reviews">Customer Reviews</a><a href="/privacy">Demo Data Notice</a></nav>');
   });
 
   it("returns accessible 422 feedback errors without persistence", async () => {

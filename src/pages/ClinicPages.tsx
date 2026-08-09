@@ -253,6 +253,7 @@ export function AppointmentFormPage({
           </div>
         )}
         {slots.length ? <form class="appointment-form" method="post" action={`/agents/${agent.id}/appointments`} noValidate>
+          <p class="demo-data-warning"><strong>Public demo:</strong> Use a fictional email address and do not submit sensitive information. This release does not send real email. <a href="/privacy">Read the demo data notice.</a></p>
           <label for="slotId">Available appointment</label>
           <select id="slotId" name="slotId" required aria-invalid={errors.slotId ? "true" : undefined} aria-describedby={errors.slotId ? "slotId-error" : "slotId-hint"}>
             <option value="">Choose an available time</option>
