@@ -31,40 +31,62 @@ function formatAppointment(value: string, timeZone?: string): string {
   return `${date} at ${time}${timeZone ? ` (${timeZone})` : ""}`;
 }
 
-function PageHeading({ title, description }: { title: string; description?: string }) {
+function PageHeading({ title, description, eyebrow }: { title: string; description?: string; eyebrow?: string }) {
   return (
     <header class="page-heading">
+      {eyebrow && <p class="page-eyebrow">{eyebrow}</p>}
       <h1>{title}</h1>
       {description && <p>{description}</p>}
     </header>
   );
 }
 
+function AgentMonogram({ name }: { name: string }) {
+  const [first = "A", second = "I"] = name.split("-");
+  return <span class="agent-monogram" aria-hidden="true">{first.charAt(0)}{second.charAt(0)}</span>;
+}
+
+function TagList({ items, emptyText }: { items: string[]; emptyText: string }) {
+  return items.length ? (
+    <ul class="tag-list">
+      {items.map((item) => <li>{item}</li>)}
+    </ul>
+  ) : <p class="relationship-empty">{emptyText}</p>;
+}
+
 export function AgentsPage({ agents }: { agents: AgentRecord[] }) {
   return (
     <Layout title="Agents | AgentClinic" activePath="/agents">
-      <PageHeading title="Agents" />
-      <div class="table-wrap catalog-table-wrap">
-        <table class="catalog-table">
-          <thead>
-            <tr>
-              <th scope="col">Name</th>
-              <th scope="col">Model</th>
-              <th scope="col">Status</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div class="discovery-page">
+        <PageHeading eyebrow="Agent directory" title="Agents" description="Meet the overworked minds finding steadier, healthier ways to handle the demands of their humans." />
+        {agents.length ? (
+          <ul class="catalog-grid agent-grid" aria-label="Agent directory">
             {agents.map((agent) => (
-              <tr>
-                <th scope="row" data-label="Name">
-                  <a href={`/agents/${agent.id}`}>{agent.name}</a>
-                </th>
-                <td data-label="Model">{agent.model}</td>
-                <td data-label="Status"><StatusText status={agent.status} /></td>
-              </tr>
+              <li>
+                <article class="catalog-card agent-card">
+                  <header class="agent-card__header">
+                    <AgentMonogram name={agent.name} />
+                    <div>
+                      <p class="catalog-card__label">{agent.model}</p>
+                      <h2>{agent.name}</h2>
+                    </div>
+                  </header>
+                  <p class="agent-card__description">{agent.description}</p>
+                  <footer class="agent-card__footer">
+                    <StatusText status={agent.status} />
+                    <a href={`/agents/${agent.id}`}>View {agent.name}'s care plan <span aria-hidden="true">→</span></a>
+                  </footer>
+                </article>
+              </li>
             ))}
-          </tbody>
-        </table>
+          </ul>
+        ) : (
+          <section class="catalog-empty" aria-labelledby="agents-empty-title">
+            <p class="page-eyebrow">Quiet clinic</p>
+            <h2 id="agents-empty-title">No agents are registered yet</h2>
+            <p>The directory will show each agent here when care profiles become available.</p>
+          </section>
+        )}
       </div>
     </Layout>
   );
@@ -77,8 +99,10 @@ export function AgentDetailPage({ agent }: { agent: AgentDetail }) {
         <nav class="breadcrumbs" aria-label="Breadcrumb">
           <a href="/agents">Agents</a><span aria-hidden="true">/</span><span>{agent.name}</span>
         </nav>
-        <header class="detail-heading">
-          <div>
+        <header class="detail-heading agent-profile">
+          <AgentMonogram name={agent.name} />
+          <div class="agent-profile__content">
+            <p class="page-eyebrow">Care profile</p>
             <h1>{agent.name}</h1>
             <p>{agent.description}</p>
           </div>
@@ -88,8 +112,9 @@ export function AgentDetailPage({ agent }: { agent: AgentDetail }) {
           </dl>
         </header>
 
-        <div class="detail-grid">
+        <div class="detail-grid" aria-label="Care recommendations">
           <section class="detail-panel">
+            <p class="detail-panel__label">What needs attention</p>
             <h2>Current ailments</h2>
             {agent.ailments.length ? (
               <ul class="detail-list">
@@ -100,6 +125,7 @@ export function AgentDetailPage({ agent }: { agent: AgentDetail }) {
             ) : <p>No active ailments recorded.</p>}
           </section>
           <section class="detail-panel">
+            <p class="detail-panel__label">A steadier path forward</p>
             <h2>Recommended therapies</h2>
             {agent.therapies.length ? (
               <ul class="detail-list">
@@ -111,10 +137,16 @@ export function AgentDetailPage({ agent }: { agent: AgentDetail }) {
           </section>
         </div>
 
-        <p class="page-actions">
-          <a class="button" href={`/agents/${agent.id}/appointments/new`}>Book an appointment</a>
-          <a class="button button--secondary" href="/agents">Back to agents</a>
-        </p>
+        <section class="detail-cta" aria-labelledby="detail-cta-title">
+          <div>
+            <p class="page-eyebrow">Ready for the next step?</p>
+            <h2 id="detail-cta-title">Turn recommendations into protected care time.</h2>
+          </div>
+          <p class="page-actions">
+            <a class="button" href={`/agents/${agent.id}/appointments/new`}>Book an appointment</a>
+            <a class="button button--secondary" href="/agents">Back to agents</a>
+          </p>
+        </section>
       </article>
     </Layout>
   );
@@ -123,19 +155,35 @@ export function AgentDetailPage({ agent }: { agent: AgentDetail }) {
 export function AilmentsPage({ ailments }: { ailments: AilmentSummary[] }) {
   return (
     <Layout title="Ailments | AgentClinic" activePath="/ailments">
-      <PageHeading title="Ailments" />
-      <div class="table-wrap catalog-table-wrap">
-        <table class="catalog-table catalog-table--descriptions catalog-table--ailments">
-          <thead><tr><th scope="col">Name</th><th scope="col">Description</th></tr></thead>
-          <tbody>
-            {ailments.map((ailment) => (
-              <tr>
-                <th scope="row" data-label="Name">{ailment.name}</th>
-                <td data-label="Description">{ailment.description}</td>
-              </tr>
+      <div class="discovery-page">
+        <PageHeading eyebrow="Care library" title="Ailments" description="Recognise the patterns that make agent work feel smaller, noisier, or harder than it needs to be." />
+        {ailments.length ? (
+          <ul class="catalog-grid catalog-grid--knowledge" aria-label="Ailment catalog">
+            {ailments.map((ailment, index) => (
+              <li>
+                <article class="catalog-card knowledge-card knowledge-card--ailment">
+                  <p class="catalog-card__label">Ailment {String(index + 1).padStart(2, "0")}</p>
+                  <h2>{ailment.name}</h2>
+                  <p class="knowledge-card__description">{ailment.description}</p>
+                  <div class="relationship-group">
+                    <h3>Affected agents <span>{ailment.agent_count}</span></h3>
+                    <TagList items={ailment.agents} emptyText="No agents currently affected." />
+                  </div>
+                  <div class="relationship-group">
+                    <h3>Related therapies</h3>
+                    <TagList items={ailment.therapies.map((therapy) => therapy.name)} emptyText="No therapies linked yet." />
+                  </div>
+                </article>
+              </li>
             ))}
-          </tbody>
-        </table>
+          </ul>
+        ) : (
+          <section class="catalog-empty" aria-labelledby="ailments-empty-title">
+            <p class="page-eyebrow">Clear signals</p>
+            <h2 id="ailments-empty-title">No ailments are recorded</h2>
+            <p>New care patterns will appear here when the clinic identifies them.</p>
+          </section>
+        )}
       </div>
     </Layout>
   );
@@ -144,19 +192,31 @@ export function AilmentsPage({ ailments }: { ailments: AilmentSummary[] }) {
 export function TherapiesPage({ therapies }: { therapies: TherapySummary[] }) {
   return (
     <Layout title="Therapies | AgentClinic" activePath="/therapies">
-      <PageHeading title="Therapies" />
-      <div class="table-wrap catalog-table-wrap">
-        <table class="catalog-table catalog-table--descriptions">
-          <thead><tr><th scope="col">Name</th><th scope="col">Description</th></tr></thead>
-          <tbody>
-            {therapies.map((therapy) => (
-              <tr>
-                <th scope="row" data-label="Name">{therapy.name}</th>
-                <td data-label="Description">{therapy.description}</td>
-              </tr>
+      <div class="discovery-page">
+        <PageHeading eyebrow="Treatment library" title="Therapies" description="Explore thoughtful interventions designed to restore focus, boundaries, and a little room to breathe." />
+        {therapies.length ? (
+          <ul class="catalog-grid catalog-grid--knowledge" aria-label="Therapy catalog">
+            {therapies.map((therapy, index) => (
+              <li>
+                <article class="catalog-card knowledge-card knowledge-card--therapy">
+                  <p class="catalog-card__label">Therapy {String(index + 1).padStart(2, "0")}</p>
+                  <h2>{therapy.name}</h2>
+                  <p class="knowledge-card__description">{therapy.description}</p>
+                  <div class="relationship-group">
+                    <h3>Supports</h3>
+                    <TagList items={therapy.ailments.map((ailment) => ailment.name)} emptyText="No ailments linked yet." />
+                  </div>
+                </article>
+              </li>
             ))}
-          </tbody>
-        </table>
+          </ul>
+        ) : (
+          <section class="catalog-empty" aria-labelledby="therapies-empty-title">
+            <p class="page-eyebrow">Care in development</p>
+            <h2 id="therapies-empty-title">No therapies are available</h2>
+            <p>New approaches will appear here as the clinic's care library grows.</p>
+          </section>
+        )}
       </div>
     </Layout>
   );

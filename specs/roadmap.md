@@ -104,3 +104,11 @@ At this point, visitors can submit dependable feedback without requiring client-
 - Make booking, collision checks, reminders, reports, and CSV exports independent of the server time zone
 - Show unambiguous site-local times throughout the clinic and progressively add visitor browser-local equivalents
 - Add atomic migration/backfill, DST, cross-server-time-zone, no-JavaScript, responsive, and production-browser coverage
+
+## Phase 12 — Inner Page Visual Refresh ✅
+
+- Extend the homepage's calm, layered visual language through the public discovery journey
+- Replace catalog tables with semantic, page-specific card collections
+- Strengthen agent details and the path from discovery to appointment booking
+- Preserve routes, data contracts, server rendering, accessibility, and no-JavaScript behavior
+- Add route, responsive, accessibility, regression, and production-browser coverage

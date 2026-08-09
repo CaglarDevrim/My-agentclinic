@@ -38,31 +38,44 @@ test("exposes the complete clinic navigation and populated sections", async ({ p
   await expect(page.getByText("Bartholomew-47B", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Hildegard-4B", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "Agents", exact: true }).last()).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("columnheader", { name: "Name" })).toHaveCount(1);
-  await expect(page.getByRole("columnheader", { name: "Model" })).toHaveCount(1);
-  await expect(page.getByRole("columnheader", { name: "Status" })).toHaveCount(1);
+  await expect(page.locator(".agent-card")).toHaveCount(6);
+  await expect(page.getByRole("list", { name: "Agent directory" })).toBeVisible();
 
   const viewportWidth = page.viewportSize()!.width;
-  const tableRowDisplay = await page.locator(".catalog-table tbody tr").first().evaluate((element) => getComputedStyle(element).display);
+  const agentGridColumns = await page.locator(".agent-grid").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
   if (viewportWidth === 375) {
-    expect(tableRowDisplay).toBe("block");
-    const mobileLabel = await page.locator('.catalog-table tbody [data-label="Name"]').first().evaluate((element) => getComputedStyle(element, "::before").content);
-    expect(mobileLabel).toContain("Name");
+    expect(agentGridColumns).toBe(1);
   } else {
-    expect(tableRowDisplay).toBe("table-row");
+    expect(agentGridColumns).toBe(2);
     const mainWidth = await page.locator("main").evaluate((element) => element.getBoundingClientRect().width);
     expect(mainWidth).toBeLessThanOrEqual(760);
   }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+
+  await page.getByRole("link", { name: "View Bartholomew-47B's care plan" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Bartholomew-47B" })).toBeVisible();
+  await expect(page.getByText("Care profile", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Current ailments" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Recommended therapies" })).toBeVisible();
 
   await page.getByRole("navigation").getByRole("link", { name: "Ailments", exact: true }).click();
   await expect(page.getByText("Context-Window Claustrophobia", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Temperature Instability", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Profound dread of running out of context space mid-thought.", { exact: true })).toBeVisible();
+  await expect(page.locator(".knowledge-card--ailment")).toHaveCount(6);
+  const contextAilment = page.locator(".knowledge-card--ailment").filter({ hasText: "Context-Window Claustrophobia" });
+  await expect(contextAilment.getByRole("heading", { name: /Affected agents/ })).toBeVisible();
+  await expect(contextAilment.getByRole("heading", { name: "Related therapies" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
 
   await page.getByRole("navigation").getByRole("link", { name: "Therapies", exact: true }).click();
   await expect(page.getByText("Prompt Reduction Therapy", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Mindful Token Counting", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Foundational course in recognising and respectfully declining out-of-scope requests.", { exact: true })).toBeVisible();
+  await expect(page.locator(".knowledge-card--therapy")).toHaveCount(8);
+  const promptTherapy = page.locator(".knowledge-card--therapy").filter({ hasText: "Prompt Reduction Therapy" });
+  await expect(promptTherapy.getByRole("heading", { name: "Supports" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
 
   await page.getByRole("navigation").getByRole("link", { name: "Dashboard", exact: true }).click();
   await signInAsStaff(page);
@@ -72,6 +85,29 @@ test("exposes the complete clinic navigation and populated sections", async ({ p
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(hasHorizontalOverflow).toBe(false);
+});
+
+test("keeps the refreshed discovery journey useful without JavaScript", async ({ browser }, testInfo) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, baseURL: String(testInfo.project.use.baseURL) });
+  const page = await context.newPage();
+  try {
+    await page.goto("/agents");
+    await expect(page.getByRole("list", { name: "Agent directory" })).toBeVisible();
+    await page.getByRole("link", { name: "View Bartholomew-47B's care plan" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Bartholomew-47B" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Book an appointment" })).toHaveAttribute("href", "/agents/1/appointments/new");
+
+    await page.goto("/ailments");
+    await expect(page.getByRole("list", { name: "Ailment catalog" })).toBeVisible();
+    await expect(page.getByText("Related therapies", { exact: true }).first()).toBeVisible();
+
+    await page.goto("/therapies");
+    await expect(page.getByRole("list", { name: "Therapy catalog" })).toBeVisible();
+    await expect(page.getByText("Supports", { exact: true }).first()).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+  } finally {
+    await context.close();
+  }
 });
 
 test("completes agent care and appointment booking", async ({ page }) => {
