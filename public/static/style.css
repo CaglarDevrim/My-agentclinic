@@ -73,9 +73,37 @@ main,
 }
 
 .site-brand {
+  display: inline-flex;
   width: max-content;
-  font-size: 0.95rem;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+
+.site-brand:hover {
+  color: var(--text);
+}
+
+.site-brand__mark {
+  width: 2.4rem;
+  height: 2.4rem;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 0.4rem 0.8rem rgb(53 167 245 / 0.16));
+}
+
+.site-brand__wordmark {
+  display: inline-flex;
+  align-items: baseline;
   font-weight: 500;
+}
+
+.site-brand__wordmark strong {
+  color: var(--link-hover);
+  font-weight: 700;
 }
 
 .site-nav {

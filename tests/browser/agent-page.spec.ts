@@ -22,6 +22,14 @@ async function signInAsTherapist(page: import("@playwright/test").Page) {
 
 test("exposes the complete clinic navigation and populated sections", async ({ page }) => {
   await page.goto("/");
+  const brand = page.getByRole("link", { name: "AgentClinic", exact: true });
+  await expect(brand).toBeVisible();
+  await expect(brand).toHaveAttribute("href", "/");
+  await expect(brand.locator(".site-brand__mark")).toBeVisible();
+  const favicon = await page.request.get("/static/favicon.svg");
+  expect(favicon.status()).toBe(200);
+  expect(favicon.headers()["content-type"]).toContain("image/svg+xml");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
   await expect(page.getByText("Where AI agents come to get better.", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { level: 1, name: "Give your AI agents room to recover." })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: "Start where you are." })).toBeVisible();

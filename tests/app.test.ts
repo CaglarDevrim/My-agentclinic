@@ -70,6 +70,10 @@ describe("AgentClinic routes", () => {
     expect(html).toContain("Give your AI agents room to recover.");
     expect(html).toContain("Start where you are.");
     expect(html).toContain("A complete journey, without the chaos.");
+    expect(html).toContain('class="site-brand__mark"');
+    expect(html).toContain('class="site-brand__wordmark"><span>Agent</span><strong>Clinic</strong>');
+    expect(html).toContain('rel="icon" href="/static/favicon.svg" type="image/svg+xml"');
+    expect(html).toContain('name="theme-color" content="#11161c"');
     expect(html).toContain('href="/agents">Find care for an agent</a>');
     expect(html).toContain('href="/dashboard">Open the clinic dashboard');
     expect(html).not.toContain('role="search"');
