@@ -23,7 +23,9 @@ export function Layout({
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="theme-color" content="#11161c" />
         <title>{title}</title>
+        <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
         <link rel="stylesheet" href="/static/style.css" />
         {visitorTime && <script src="/static/visitor-time.js" defer></script>}
       </head>

@@ -58,8 +58,8 @@ describe("production release readiness", () => {
       functions: Record<string, { includeFiles: string }>;
       rewrites: Array<{ source: string; destination: string }>;
     };
-    const ci = readFileSync(".github/workflows/ci.yml", "utf8");
-    const deploymentSmoke = readFileSync(".github/workflows/deployment-smoke.yml", "utf8");
+    const ci = readFileSync(".github/workflows/ci.yml", "utf8").replaceAll("\r\n", "\n");
+    const deploymentSmoke = readFileSync(".github/workflows/deployment-smoke.yml", "utf8").replaceAll("\r\n", "\n");
     const tsconfig = JSON.parse(readFileSync("tsconfig.json", "utf8")) as { include: string[] };
 
     expect(packageJson.main).toBe("dist/server.js");
@@ -82,6 +82,7 @@ describe("production release readiness", () => {
     expect(deploymentSmoke).toContain("AGENTCLINIC_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}");
     expect(deploymentSmoke).toContain("npm run smoke:release");
     expect(existsSync("public/static/style.css")).toBe(true);
+    expect(existsSync("public/static/favicon.svg")).toBe(true);
     expect(existsSync("public/static/about-map.js")).toBe(true);
     expect(existsSync("public/static/visitor-time.js")).toBe(true);
   });
