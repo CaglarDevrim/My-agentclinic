@@ -72,9 +72,13 @@ describe("production release readiness", () => {
     expect(readFileSync("api/index.ts", "utf8")).toContain('const compiledEntry = "../dist/index.js"');
     expect(tsconfig.include).toContain("api");
     expect(ci).toContain("permissions:\n  contents: read");
+    expect(ci).toContain("actions/checkout@v7");
+    expect(ci).toContain("actions/setup-node@v7");
     expect(ci).toContain("npm run validate");
     expect(ci).toContain("npm audit --audit-level=moderate");
     expect(deploymentSmoke).toContain("deployment_status:");
+    expect(deploymentSmoke).toContain("actions/checkout@v7");
+    expect(deploymentSmoke).toContain("actions/setup-node@v7");
     expect(deploymentSmoke).toContain("AGENTCLINIC_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}");
     expect(deploymentSmoke).toContain("npm run smoke:release");
     expect(existsSync("public/static/style.css")).toBe(true);
