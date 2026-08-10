@@ -21,9 +21,10 @@ Configure `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` separately in Vercel's Pre
 3. Create distinct Turso databases for Preview and Production.
 4. Add the corresponding URL and token to the matching Vercel environment scopes.
 5. Connect the Vercel GitHub integration so deployments publish GitHub deployment-status events.
-6. Protect `main` and require the `Quality / validate` and `Deployment Smoke / smoke` checks before merge.
+6. If Deployment Protection is enabled, create a Vercel Automation Bypass secret and save the same value as the GitHub Actions secret `VERCEL_AUTOMATION_BYPASS_SECRET`.
+7. Protect `main` and require the `Quality / validate` and `Deployment Smoke / smoke` checks before merge.
 
-No Turso or Vercel secret is required by GitHub Actions. Repository CI uses isolated local databases.
+Repository quality CI uses isolated local databases and needs no Turso or Vercel credentials. The deployment-status smoke workflow receives only the optional Automation Bypass secret and never receives database credentials.
 
 ## Prepare a remote database
 

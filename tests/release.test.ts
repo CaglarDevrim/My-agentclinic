@@ -53,19 +53,29 @@ describe("production release readiness", () => {
 
   it("commits deterministic Vercel, CI, smoke, and public-asset contracts", () => {
     const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as { main: string; engines: { node: string }; scripts: Record<string, string> };
-    const vercel = JSON.parse(readFileSync("vercel.json", "utf8")) as { buildCommand: string; functions: Record<string, { includeFiles: string }> };
+    const vercel = JSON.parse(readFileSync("vercel.json", "utf8")) as {
+      buildCommand: string;
+      functions: Record<string, { includeFiles: string }>;
+      rewrites: Array<{ source: string; destination: string }>;
+    };
     const ci = readFileSync(".github/workflows/ci.yml", "utf8");
     const deploymentSmoke = readFileSync(".github/workflows/deployment-smoke.yml", "utf8");
+    const tsconfig = JSON.parse(readFileSync("tsconfig.json", "utf8")) as { include: string[] };
 
     expect(packageJson.main).toBe("dist/server.js");
     expect(packageJson.engines.node).toBe("24.x");
     expect(packageJson.scripts["smoke:release"]).toBe("node scripts/smoke-release.mjs");
+    expect(readFileSync("scripts/smoke-release.mjs", "utf8")).toContain("x-vercel-protection-bypass");
     expect(vercel.buildCommand).toBe("npm run build");
-    expect(vercel.functions["src/index.ts"].includeFiles).toBe("src/db/migrations/**");
+    expect(vercel.functions["api/index.ts"].includeFiles).toBe("dist/**");
+    expect(vercel.rewrites).toContainEqual({ source: "/(.*)", destination: "/api" });
+    expect(readFileSync("api/index.ts", "utf8")).toContain('const compiledEntry = "../dist/index.js"');
+    expect(tsconfig.include).toContain("api");
     expect(ci).toContain("permissions:\n  contents: read");
     expect(ci).toContain("npm run validate");
     expect(ci).toContain("npm audit --audit-level=moderate");
     expect(deploymentSmoke).toContain("deployment_status:");
+    expect(deploymentSmoke).toContain("AGENTCLINIC_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}");
     expect(deploymentSmoke).toContain("npm run smoke:release");
     expect(existsSync("public/static/style.css")).toBe(true);
     expect(existsSync("public/static/about-map.js")).toBe(true);

@@ -2,6 +2,7 @@ const rawBaseUrl = process.env.AGENTCLINIC_BASE_URL;
 if (!rawBaseUrl) throw new Error("AGENTCLINIC_BASE_URL is required.");
 
 const baseUrl = new URL(rawBaseUrl);
+const vercelBypassSecret = process.env.AGENTCLINIC_BYPASS_SECRET;
 const isLocal = baseUrl.hostname === "127.0.0.1" || baseUrl.hostname === "localhost";
 if (baseUrl.username || baseUrl.password) throw new Error("The smoke target must not contain credentials.");
 if (baseUrl.protocol !== "https:" && !(isLocal && baseUrl.protocol === "http:")) {
@@ -16,7 +17,14 @@ function target(path) {
 }
 
 async function request(path, options = {}) {
-  const response = await fetch(target(path), { redirect: "manual", signal: AbortSignal.timeout(10_000), ...options });
+  const headers = new Headers(options.headers);
+  if (vercelBypassSecret) headers.set("x-vercel-protection-bypass", vercelBypassSecret);
+  const response = await fetch(target(path), {
+    redirect: "manual",
+    signal: AbortSignal.timeout(10_000),
+    ...options,
+    headers,
+  });
   return response;
 }
 
