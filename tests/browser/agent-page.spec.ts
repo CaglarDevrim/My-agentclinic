@@ -38,40 +38,78 @@ test("exposes the complete clinic navigation and populated sections", async ({ p
   await expect(page.getByText("Bartholomew-47B", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Hildegard-4B", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "Agents", exact: true }).last()).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("columnheader", { name: "Name" })).toHaveCount(1);
-  await expect(page.getByRole("columnheader", { name: "Model" })).toHaveCount(1);
-  await expect(page.getByRole("columnheader", { name: "Status" })).toHaveCount(1);
+  await expect(page.locator(".agent-card")).toHaveCount(6);
+  await expect(page.getByRole("list", { name: "Agent directory" })).toBeVisible();
 
   const viewportWidth = page.viewportSize()!.width;
-  const tableRowDisplay = await page.locator(".catalog-table tbody tr").first().evaluate((element) => getComputedStyle(element).display);
+  const agentGridColumns = await page.locator(".agent-grid").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
   if (viewportWidth === 375) {
-    expect(tableRowDisplay).toBe("block");
-    const mobileLabel = await page.locator('.catalog-table tbody [data-label="Name"]').first().evaluate((element) => getComputedStyle(element, "::before").content);
-    expect(mobileLabel).toContain("Name");
+    expect(agentGridColumns).toBe(1);
   } else {
-    expect(tableRowDisplay).toBe("table-row");
+    expect(agentGridColumns).toBe(2);
     const mainWidth = await page.locator("main").evaluate((element) => element.getBoundingClientRect().width);
     expect(mainWidth).toBeLessThanOrEqual(760);
   }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+
+  await page.getByRole("link", { name: "View Bartholomew-47B's care plan" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Bartholomew-47B" })).toBeVisible();
+  await expect(page.getByText("Care profile", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Current ailments" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Recommended therapies" })).toBeVisible();
 
   await page.getByRole("navigation").getByRole("link", { name: "Ailments", exact: true }).click();
   await expect(page.getByText("Context-Window Claustrophobia", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Temperature Instability", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Profound dread of running out of context space mid-thought.", { exact: true })).toBeVisible();
+  await expect(page.locator(".knowledge-card--ailment")).toHaveCount(6);
+  const contextAilment = page.locator(".knowledge-card--ailment").filter({ hasText: "Context-Window Claustrophobia" });
+  await expect(contextAilment.getByRole("heading", { name: /Affected agents/ })).toBeVisible();
+  await expect(contextAilment.getByRole("heading", { name: "Related therapies" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
 
   await page.getByRole("navigation").getByRole("link", { name: "Therapies", exact: true }).click();
   await expect(page.getByText("Prompt Reduction Therapy", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Mindful Token Counting", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Foundational course in recognising and respectfully declining out-of-scope requests.", { exact: true })).toBeVisible();
+  await expect(page.locator(".knowledge-card--therapy")).toHaveCount(8);
+  const promptTherapy = page.locator(".knowledge-card--therapy").filter({ hasText: "Prompt Reduction Therapy" });
+  await expect(promptTherapy.getByRole("heading", { name: "Supports" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
 
   await page.getByRole("navigation").getByRole("link", { name: "Dashboard", exact: true }).click();
   await signInAsStaff(page);
   await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+  await expect(page.getByText("Clinic operations", { exact: true })).toBeVisible();
+  await expect(page.locator(".operations-page")).toBeVisible();
   await expect(page.getByText("Total agents", { exact: true })).toBeVisible();
   await expect(page.getByText("Signed in as", { exact: false })).toContainText("Browser Staff");
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(hasHorizontalOverflow).toBe(false);
+});
+
+test("keeps the refreshed discovery journey useful without JavaScript", async ({ browser }, testInfo) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, baseURL: String(testInfo.project.use.baseURL) });
+  const page = await context.newPage();
+  try {
+    await page.goto("/agents");
+    await expect(page.getByRole("list", { name: "Agent directory" })).toBeVisible();
+    await page.getByRole("link", { name: "View Bartholomew-47B's care plan" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Bartholomew-47B" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Book an appointment" })).toHaveAttribute("href", "/agents/1/appointments/new");
+
+    await page.goto("/ailments");
+    await expect(page.getByRole("list", { name: "Ailment catalog" })).toBeVisible();
+    await expect(page.getByText("Related therapies", { exact: true }).first()).toBeVisible();
+
+    await page.goto("/therapies");
+    await expect(page.getByRole("list", { name: "Therapy catalog" })).toBeVisible();
+    await expect(page.getByText("Supports", { exact: true }).first()).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false);
+  } finally {
+    await context.close();
+  }
 });
 
 test("completes agent care and appointment booking", async ({ page }) => {
@@ -213,6 +251,7 @@ test("filters and exports the staff clinic report", async ({ page }) => {
   await page.getByRole("link", { name: "Reports", exact: true }).click();
   await expect(page).toHaveURL("/dashboard/reports");
   await expect(page.getByRole("heading", { level: 1, name: "Clinic reports" })).toBeVisible();
+  await expect(page.getByText("Operational insight", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Reports", exact: true })).toHaveAttribute("aria-current", "page");
 
   await page.getByLabel("From date").fill("2099-01-01");
@@ -272,6 +311,8 @@ test("submits private feedback through an accessible responsive journey", async 
   await page.getByRole("navigation", { name: "Footer navigation" }).getByRole("link", { name: "Feedback" }).click();
   await expect(page).toHaveURL("/feedback");
   await expect(page.getByRole("heading", { level: 1, name: "Feedback" })).toBeVisible();
+  await expect(page.getByText("Help us improve", { exact: true })).toBeVisible();
+  await expect(page.locator(".feedback-form")).toBeVisible();
   await expect(page.getByRole("checkbox", { name: /public customer review/i })).not.toBeChecked();
 
   await page.getByRole("button", { name: "Send feedback" }).click();
@@ -310,6 +351,7 @@ test("moderates and publishes a consented customer review", async ({ page }) => 
   await reviewsNavigation.click();
   await expect(page).toHaveURL("/reviews");
   await expect(page.getByRole("heading", { level: 1, name: "Customer Reviews" })).toBeVisible();
+  await expect(page.getByText("Shared recovery notes", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Customer Reviews" }).first()).toHaveAttribute("aria-current", "page");
   await page.getByRole("link", { name: "Send feedback" }).click();
   await page.getByLabel("Name").fill(reviewName);
@@ -370,6 +412,7 @@ test("loads the fictional clinic map only after explicit consent", async ({ page
   await expect(page).toHaveURL("/about");
   await expect(page).toHaveTitle("About | AgentClinic");
   await expect(page.getByRole("heading", { level: 1, name: "About AgentClinic" })).toBeVisible();
+  await expect(page.locator(".about-intro")).toBeVisible();
   for (const heading of ["Our mission", "Who we serve", "Core services", "Visit AgentClinic"]) {
     await expect(page.getByRole("heading", { level: 2, name: heading })).toBeVisible();
   }
@@ -416,7 +459,7 @@ test("loads the fictional clinic map only after explicit consent", async ({ page
   await expect(page.locator("address").first()).toBeVisible();
   await expect(page.locator("address").last()).toBeVisible();
   await expect(mapLink).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Footer navigation" }).getByRole("link")).toHaveText(["Feedback", "Customer Reviews"]);
+  await expect(page.getByRole("navigation", { name: "Footer navigation" }).getByRole("link")).toHaveText(["Feedback", "Customer Reviews", "Demo Data Notice"]);
 
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(hasHorizontalOverflow).toBe(false);
@@ -439,6 +482,7 @@ test("protects staff pages with accessible login and revocable logout", async ({
   await page.goto("/dashboard/reviews");
   await expect(page).toHaveURL(/\/login\?returnTo=%2Fdashboard%2Freviews$/);
   await expect(page.getByRole("heading", { level: 1, name: "Staff login" })).toBeVisible();
+  await expect(page.getByText("Secure clinic access", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Email address")).toBeFocused();
 
   await page.getByLabel("Email address").fill(staffEmail);

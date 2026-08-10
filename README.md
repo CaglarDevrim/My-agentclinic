@@ -42,3 +42,15 @@ AgentClinic uses the production-ready `@libsql/client` so the same repository la
 - Authentication tokens belong in local or Vercel environment variables and must never be committed.
 
 Use [`.env.example`](.env.example) as the variable-name reference when configuring your shell or Vercel project. Normal local development does not require environment variables.
+
+## Release workflow
+
+AgentClinic is prepared for a public demonstration on Vercel with separate Preview and Production Turso databases.
+
+- `npm run validate` is the local and CI merge gate.
+- `npm run smoke:release` performs read-only checks against `AGENTCLINIC_BASE_URL`.
+- `/health` is the dependency-free liveness endpoint; `/ready` verifies database release readiness.
+- Vercel Preview and Production must use different Turso credentials.
+- The public demo stores submitted workflow data but does not send real notification email.
+
+Follow [`docs/production-release.md`](docs/production-release.md) for provisioning, deployment, branch protection, verification, rollback, and demo-data reset.

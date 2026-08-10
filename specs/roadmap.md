@@ -104,3 +104,27 @@ At this point, visitors can submit dependable feedback without requiring client-
 - Make booking, collision checks, reminders, reports, and CSV exports independent of the server time zone
 - Show unambiguous site-local times throughout the clinic and progressively add visitor browser-local equivalents
 - Add atomic migration/backfill, DST, cross-server-time-zone, no-JavaScript, responsive, and production-browser coverage
+
+## Phase 12 — Inner Page Visual Refresh ✅
+
+- Extend the homepage's calm, layered visual language through the public discovery journey
+- Replace catalog tables with semantic, page-specific card collections
+- Strengthen agent details and the path from discovery to appointment booking
+- Preserve routes, data contracts, server rendering, accessibility, and no-JavaScript behavior
+- Add route, responsive, accessibility, regression, and production-browser coverage
+
+## Phase 13 — Complete Interface Refresh ✅
+
+- Extend the refreshed visual system across forms, public content, appointment, error, and staff operations pages
+- Give forms, confirmations, reviews, About content, metrics, reports, and operational tables purposeful visual hierarchy
+- Preserve every route, mutation, permission, privacy boundary, and no-JavaScript workflow
+- Keep staff surfaces information-dense and functional while aligning them with the public product
+- Add semantic, responsive, accessibility, regression, and production-browser coverage
+
+## Phase 14 — Production Release Readiness ✅
+
+- Add a Vercel-compatible Hono runtime while preserving the local Node server
+- Deploy with isolated Preview and Production Turso configuration
+- Add database readiness, browser security headers, and a public demo-data notice
+- Enforce type, test, browser, dependency, whitespace, and live-smoke release gates
+- Document provisioning, deployment, verification, data reset, and rollback

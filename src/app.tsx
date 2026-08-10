@@ -6,7 +6,7 @@ import { clearLoginCsrfCookie, clearSessionCookie, readLoginCsrfCookie, readSess
 import { authenticateStaffCredentials, authenticateStaffSession, createStaffSession, endStaffSession } from "./auth/service.js";
 import { constantTimeStringEqual, createLoginCsrfToken, hasSameOrigin, isFreshLoginCsrfToken, isValidStaffEmail, isValidStaffPassword, normalizeStaffEmail, safeDashboardReturnTo } from "./auth/security.js";
 import type { AuthenticatedStaff } from "./auth/types.js";
-import { approveReview, cancelAppointment, confirmAppointment, createAppointmentFromSlot, createFeedback, createTherapistSlot, findActiveSiteById, findActiveSiteBySlug, findAgent, findAppointment, getClinicReport, getDashboard, listActiveSites, listAgents, listAilments, listAvailableSlots, listPublicReviews, listReportAppointments, listReviewModerationItems, listTherapistAppointments, listTherapists, listTherapistSlots, listTherapies, removeTherapistSlot, unpublishReview, type ClinicDatabase } from "./db/index.js";
+import { approveReview, cancelAppointment, confirmAppointment, createAppointmentFromSlot, createFeedback, createTherapistSlot, findActiveSiteById, findActiveSiteBySlug, findAgent, findAppointment, getClinicReport, getDashboard, isDatabaseReady, listActiveSites, listAgents, listAilments, listAvailableSlots, listPublicReviews, listReportAppointments, listReviewModerationItems, listTherapistAppointments, listTherapists, listTherapistSlots, listTherapies, removeTherapistSlot, unpublishReview, type ClinicDatabase } from "./db/index.js";
 import { findAgentBySlug } from "./domain/care.js";
 import { validateFeedback, type FeedbackValues } from "./domain/feedback.js";
 import { normalizeNotificationEmail, validateNotificationContact } from "./domain/notifications.js";
@@ -20,6 +20,7 @@ import { ReviewModerationPage, ReviewsPage } from "./pages/ReviewPages.js";
 import { AboutPage } from "./pages/AboutPage.js";
 import { LoginPage, type LoginErrors } from "./pages/AuthPage.js";
 import { ClinicReportPage } from "./pages/ReportPage.js";
+import { PrivacyPage } from "./pages/PrivacyPage.js";
 
 export type RequestLogger = (message: string) => void;
 
@@ -83,8 +84,16 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
     await next();
     logger(`${context.req.method} ${context.req.path} ${context.res.status} ${Math.round(performance.now() - started)}ms`);
   });
+  app.use("*", async (context, next) => {
+    context.header("Content-Security-Policy", "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'; connect-src 'self'; frame-src https://www.openstreetmap.org");
+    context.header("Permissions-Policy", "camera=(), geolocation=(), microphone=()");
+    context.header("Referrer-Policy", "same-origin");
+    context.header("X-Content-Type-Options", "nosniff");
+    context.header("X-Frame-Options", "DENY");
+    await next();
+  });
   app.use(jsxRenderer());
-  app.use("/static/*", serveStatic({ root: "./" }));
+  app.use("/static/*", serveStatic({ root: "./public" }));
 
   const requireStaff: MiddlewareHandler<AppEnv> = async (context, next) => {
     context.header("Cache-Control", "no-store");
@@ -118,7 +127,15 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
   app.use("/dashboard", requireStaff);
   app.use("/dashboard/*", requireStaff);
 
-  app.get("/health", (context) => context.json({ status: "ok" }));
+  app.get("/health", (context) => {
+    context.header("Cache-Control", "no-store");
+    return context.json({ status: "ok" });
+  });
+  app.get("/ready", async (context) => {
+    context.header("Cache-Control", "no-store");
+    if (await isDatabaseReady(db)) return context.json({ status: "ready" });
+    return context.json({ status: "unavailable" }, 503);
+  });
   app.get("/", (context) => context.render(<HomePage />));
   app.get("/agents", async (context) => context.render(<AgentsPage agents={await listAgents(db)} />));
   app.get("/ailments", async (context) => context.render(<AilmentsPage ailments={await listAilments(db)} />));
@@ -367,6 +384,7 @@ export function createApp(db: ClinicDatabase, options: { logger?: RequestLogger;
   });
   app.get("/reviews", async (context) => context.render(<ReviewsPage reviews={await listPublicReviews(db)} />));
   app.get("/about", (context) => context.render(<AboutPage />));
+  app.get("/privacy", (context) => context.render(<PrivacyPage />));
   app.get("/feedback", (context) => context.render(<FeedbackPage />));
   app.get("/feedback/thanks", (context) => context.render(<FeedbackThanksPage />));
   app.post("/feedback", async (context) => {

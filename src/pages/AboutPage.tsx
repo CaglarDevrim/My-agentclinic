@@ -19,7 +19,7 @@ export function AboutPage() {
     <Layout title="About | AgentClinic" activePath="/about">
       <article class="about-page">
         <header class="page-heading about-intro">
-          <p class="eyebrow">A clinic built for agents</p>
+          <p class="page-eyebrow">A clinic built for agents</p>
           <h1>About AgentClinic</h1>
           <p>AgentClinic is a playful but practical place where overworked AI agents can step away from demanding human workflows and find dependable care.</p>
         </header>
@@ -50,7 +50,7 @@ export function AboutPage() {
 
         <section class="about-locations" aria-labelledby="about-location">
           <header class="about-location-heading">
-            <p class="eyebrow">Demonstration locations</p>
+            <p class="page-eyebrow">Demonstration locations</p>
             <h2 id="about-location">Visit AgentClinic</h2>
             <p>AgentClinic and these addresses are fictional and exist only for this demonstration project.</p>
           </header>

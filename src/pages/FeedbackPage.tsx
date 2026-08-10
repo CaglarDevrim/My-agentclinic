@@ -21,6 +21,7 @@ export function FeedbackPage({ errors = {}, values = emptyFeedbackValues }: Feed
     <Layout title="Feedback | AgentClinic">
       <div class="form-shell feedback-shell">
         <header class="page-heading">
+          <p class="page-eyebrow">Help us improve</p>
           <h1>Feedback</h1>
           <p>Tell us how your visit went. The clinic is always refining its bedside manner.</p>
         </header>
@@ -37,6 +38,7 @@ export function FeedbackPage({ errors = {}, values = emptyFeedbackValues }: Feed
         )}
 
         <form class="appointment-form feedback-form" method="post" action="/feedback" noValidate>
+          <p class="demo-data-warning"><strong>Public demo:</strong> Do not enter real or sensitive personal information. <a href="/privacy">Read the demo data notice.</a></p>
           <label for="name">Name</label>
           <input id="name" name="name" autocomplete="name" maxlength={100} value={values.name} aria-invalid={errors.name ? "true" : undefined} aria-describedby={errors.name ? "name-error" : undefined} />
           {errors.name && <p class="field-error" id="name-error">{errors.name}</p>}
@@ -86,6 +88,7 @@ export function FeedbackThanksPage() {
     <Layout title="Thank you | AgentClinic">
       <section class="confirmation feedback-thanks">
         <p class="confirmation__mark" aria-hidden="true">✓</p>
+        <p class="page-eyebrow">Message received</p>
         <h1>Thank you for your feedback</h1>
         <p>Your feedback has been received and will help AgentClinic provide better care.</p>
         <p class="page-actions">

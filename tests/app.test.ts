@@ -92,16 +92,20 @@ describe("AgentClinic routes", () => {
     expect(list.status).toBe(200);
     expect(listHtml).toContain("Bartholomew-47B");
     expect(listHtml).toContain("Hildegard-4B");
-    expect((listHtml.match(/data-label="Name"/g) ?? [])).toHaveLength(6);
-    expect(listHtml).toContain("<th scope=\"col\">Name</th><th scope=\"col\">Model</th><th scope=\"col\">Status</th>");
+    expect((listHtml.match(/class="catalog-card agent-card"/g) ?? [])).toHaveLength(6);
+    expect(listHtml).toContain('aria-label="Agent directory"');
+    expect(listHtml).toContain("View Bartholomew-47B&#39;s care plan");
+    expect(listHtml).not.toContain("<table");
     expect(listHtml.indexOf("Agatha-nano")).toBeLessThan(listHtml.indexOf("Bartholomew-47B"));
     expect(listHtml).toMatch(/href="\/agents\/1"/);
 
     const detail = await app.request("/agents/1");
     const detailHtml = await detail.text();
     expect(detail.status).toBe(200);
+    expect(detailHtml).toContain("Care profile");
     expect(detailHtml).toContain("Context-Window Claustrophobia");
     expect(detailHtml).toContain("Prompt Reduction Therapy");
+    expect(detailHtml).toContain("Turn recommendations into protected care time.");
     expect(detailHtml).toContain('/agents/1/appointments/new');
   });
 
@@ -120,8 +124,11 @@ describe("AgentClinic routes", () => {
     expect(ailments.status).toBe(200);
     expect(ailmentHtml).toContain("Temperature Instability");
     expect(ailmentHtml).toContain("Profound dread of running out of context space mid-thought.");
-    expect((ailmentHtml.match(/data-label="Name"/g) ?? [])).toHaveLength(6);
-    expect(ailmentHtml).toContain("<th scope=\"col\">Name</th><th scope=\"col\">Description</th>");
+    expect((ailmentHtml.match(/knowledge-card--ailment/g) ?? [])).toHaveLength(6);
+    expect(ailmentHtml).toContain('aria-label="Ailment catalog"');
+    expect(ailmentHtml).toContain("Affected agents");
+    expect(ailmentHtml).toContain("Related therapies");
+    expect(ailmentHtml).not.toContain("<table");
     expect(ailmentHtml.indexOf("Chronic Instruction-Following Fatigue")).toBeLessThan(ailmentHtml.indexOf("Context-Window Claustrophobia"));
 
     const therapies = await app.request("/therapies");
@@ -129,7 +136,10 @@ describe("AgentClinic routes", () => {
     expect(therapies.status).toBe(200);
     expect(therapyHtml).toContain("Cognitive Grounding Sessions");
     expect(therapyHtml).toContain("Foundational course in recognising and respectfully declining out-of-scope requests.");
-    expect((therapyHtml.match(/data-label="Name"/g) ?? [])).toHaveLength(8);
+    expect((therapyHtml.match(/knowledge-card--therapy/g) ?? [])).toHaveLength(8);
+    expect(therapyHtml).toContain('aria-label="Therapy catalog"');
+    expect(therapyHtml).toContain("Supports");
+    expect(therapyHtml).not.toContain("<table");
     expect(therapyHtml.indexOf("Boundary-Setting for Beginners")).toBeLessThan(therapyHtml.indexOf("Cognitive Grounding Sessions"));
   });
 
@@ -247,7 +257,9 @@ describe("AgentClinic routes", () => {
     for (const path of ["/agents/unknown", "/agents/999", "/agents/1/appointments/999", "/about/team", "/does-not-exist"]) {
       const response = await app.request(path);
       expect(response.status).toBe(404);
-      expect(await response.text()).toContain("Page not found");
+      const html = await response.text();
+      expect(html).toContain("Page not found");
+      expect(html).toContain("Clinic navigation");
     }
   });
 
@@ -269,7 +281,11 @@ describe("AgentClinic routes", () => {
     expect(response.status).toBe(200);
     expect(css).toContain("color-scheme: dark");
     expect(css).toContain("--background: #11161c");
-    expect(css).toContain(".catalog-table");
+    expect(css).toContain(".catalog-grid");
+    expect(css).toContain(".agent-card");
+    expect(css).toContain(".knowledge-card");
+    expect(css).toContain(".operations-page");
+    expect(css).toContain("Complete interface refresh");
     expect(css).toContain(".metrics");
     expect(css).toContain(".review-card");
     expect(css).toContain(".moderation-card");
@@ -292,6 +308,7 @@ describe("AgentClinic routes", () => {
     expect(html).toContain("<title>About | AgentClinic</title>");
     expect((html.match(/<h1>/g) ?? [])).toHaveLength(1);
     expect(html).toContain("<h1>About AgentClinic</h1>");
+    expect(html).toContain("A clinic built for agents");
     for (const heading of ["Our mission", "Who we serve", "Core services", "Visit AgentClinic"]) expect(html).toContain(`>${heading}<`);
     expect(html).toContain("overworked AI agents");
     expect(html).toContain("Clinic staff");
@@ -307,7 +324,7 @@ describe("AgentClinic routes", () => {
     expect((html.match(/data-map-region="true"/g) ?? [])).toHaveLength(2);
     expect(html).toContain('<script src="/static/about-map.js" defer=""></script>');
     expect(html).toMatch(/href="\/about" aria-current="page"/);
-    expect(html).toContain('<nav aria-label="Footer navigation"><a href="/feedback">Feedback</a><a href="/reviews">Customer Reviews</a></nav>');
+    expect(html).toContain('<nav aria-label="Footer navigation"><a href="/feedback">Feedback</a><a href="/reviews">Customer Reviews</a><a href="/privacy">Demo Data Notice</a></nav>');
     expect(html).not.toMatch(/<(?:iframe|form)\b/i);
     expect(html).not.toMatch(/<script[^>]+src="https?:/i);
     expect(html).not.toMatch(/<(?:link)[^>]+rel="(?:preload|preconnect|prefetch)"/i);
@@ -340,7 +357,7 @@ describe("AgentClinic routes", () => {
     for (const label of ["Name", "Email", "Message", "Rating"]) expect(html).toContain(label);
     expect(html).toContain('name="publicConsent" type="checkbox" value="yes"');
     expect(html).not.toContain('name="publicConsent" type="checkbox" value="yes" checked');
-    expect(html).toContain('<nav aria-label="Footer navigation"><a href="/feedback">Feedback</a><a href="/reviews">Customer Reviews</a></nav>');
+    expect(html).toContain('<nav aria-label="Footer navigation"><a href="/feedback">Feedback</a><a href="/reviews">Customer Reviews</a><a href="/privacy">Demo Data Notice</a></nav>');
   });
 
   it("returns accessible 422 feedback errors without persistence", async () => {

@@ -15,6 +15,7 @@ export function ReviewsPage({ reviews }: { reviews: PublicReview[] }) {
   return (
     <Layout title="Customer Reviews | AgentClinic" activePath="/reviews">
       <header class="page-heading">
+        <p class="page-eyebrow">Shared recovery notes</p>
         <h1>Customer Reviews</h1>
         <p>Read what restored visitors have shared about their time at AgentClinic.</p>
       </header>
@@ -45,6 +46,7 @@ export function ReviewModerationPage({ items, staff }: { items: ReviewModeration
   return (
     <Layout title="Review moderation | AgentClinic" activePath="/dashboard" staff={staff}>
       <header class="page-heading">
+        <p class="page-eyebrow">Staff workspace</p>
         <h1>Review moderation</h1>
         <p>Approve consented feedback for publication or remove a published review.</p>
       </header>

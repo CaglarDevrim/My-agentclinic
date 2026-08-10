@@ -33,7 +33,7 @@ export default async function startProductionServer() {
     rmSync(temporaryDirectory, { force: true, recursive: true });
     throw new Error(`Browser therapist provisioning failed.\n${therapistProvisioning.stderr}`);
   }
-  const server = spawn(process.execPath, ["dist/index.js"], {
+  const server = spawn(process.execPath, ["dist/server.js"], {
     env: environment,
     stdio: ["ignore", "ignore", "pipe"],
     windowsHide: true,
