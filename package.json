@@ -3,19 +3,31 @@
   "version": "1.0.0",
   "description": "",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/server.js",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
+    "db:setup": "tsx src/db/setup.ts",
+    "staff:create": "tsx src/staff-create.ts",
+    "therapist:create": "tsx src/therapist-create.ts",
+    "notifications:process": "tsx src/notifications-process.ts",
     "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit",
-    "build": "tsc --project tsconfig.build.json",
-    "test": "vitest run"
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.playwright.json",
+    "build": "tsc --project tsconfig.build.json && node scripts/copy-migrations.mjs",
+    "test": "vitest run",
+    "test:browser": "npm run build && playwright test",
+    "validate": "npm run typecheck && npm test && npm run test:browser",
+    "smoke:release": "node scripts/smoke-release.mjs"
   },
   "dependencies": {
-    "@hono/node-server": "^1.19.9",
-    "hono": "^4.10.8"
+    "@hono/node-server": "^2.0.12",
+    "@libsql/client": "^0.17.4",
+    "hono": "^4.13.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^24.10.1",
     "tsx": "^4.21.0",
     "typescript": "^5.5.3",

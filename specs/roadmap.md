@@ -1,75 +1,130 @@
 # Roadmap
 
-Work is divided into very small, reviewable phases. Following the selected end-to-end-first strategy, the earliest phases establish a thin but complete clinic journey before individual areas are expanded.
+The existing AgentClinic application is the completed MVP baseline. New roadmap phases are ordered from `TODO.md` and are intentionally small, reviewable product increments.
 
-Responsive behavior is a product-wide requirement for every phase, not work deferred until final polish. Each new page and workflow must support mobile, tablet, and desktop layouts when it is introduced.
+Responsive behavior, accessibility, server-side validation, persistence tests, and production-browser coverage are requirements of every phase rather than work deferred until the end.
 
-## Phase 1 — Open the Clinic ✅
+## Completed MVP Baseline ✅
 
-- Configure Hono and the development server
-- Add a health check
-- Render a simple home page
+- Hono, TypeScript, server-rendered JSX, health check, and production startup
+- Shared responsive layout and primary clinic navigation
+- SQLite migrations and deterministic agent, ailment, therapy, and appointment seeds
+- Agent directory and care details
+- Ailment and therapy catalogs
+- Appointment booking, validation, persistence, and confirmation
+- Staff dashboard with clinic summaries and open appointments
+- Branded error pages, request logging, security checks, and automated validation
 
-## Phase 2 — Complete Clinic Journey and Dashboard
+## Phase 1 — Feedback Form ✅
 
-- Add navigation destinations as new pages become available
-- Reuse the shared header, main content, and footer across every page
-- Expand the responsive CSS foundation for multi-page content
-- Seed one agent, one ailment, and one therapy
-- Show the agent and its care recommendation on one page
-- Provide a minimal appointment request form
-- Validate an appointment request
-- Save it to SQLite
-- Show a confirmation page
-- Show counts for agents and appointments
-- Show the next scheduled appointment
-- Link to the working clinic journey
+- Add the minimal feedback persistence model and ordered migration
+- Add a public feedback form using established server-rendered patterns
+- Validate submissions at the application boundary
+- Save valid feedback through Post/Redirect/Get and show confirmation
+- Add accessible errors, responsive presentation, route/database tests, and browser coverage
 
-At this point, one agent can move through a complete discovery-to-booking workflow, and clinic staff can see its key activity from the dashboard.
+At this point, visitors can submit dependable feedback without requiring client-side JavaScript.
 
-## Phase 3 — Agent Directory
+## Phase 2 — Customer Reviews ✅
 
-- Add the agents table and seed records
-- List agents
-- Show one agent’s details and ailments
+- Add staff review and approval of stored feedback
+- Add a public customer-reviews page
+- Publish approved feedback only and keep private submission details private
+- Add empty, success, responsive, accessibility, and moderation-state coverage
 
-## Phase 4 — Ailment Catalog
+## Phase 3 — About Us, Address, and Map ✅
 
-- Add the ailments table
-- List and view ailments
-- Associate agents with ailments
+- Add an About page describing AgentClinic's mission and audience
+- Show a visible, accessible clinic address
+- Add an accessible link to an external map provider
+- Avoid embedded tracking, map SDKs, and API keys
+- Add semantic, responsive, external-link, and production-browser validation
 
-## Phase 5 — Therapy Catalog
+## Phase 4 — Appointment Status Management and Slot-Collision Enforcement ✅
 
-- Add the therapies table
-- List and view therapies
-- Associate recommended therapies with ailments
+- Add controlled pending, confirmed, and cancelled appointment transitions to the staff dashboard
+- Protect open therapist slots with normalized application checks and database uniqueness
+- Release cancelled slots and return accessible booking conflicts without losing form values
+- Add migration, persistence, concurrency, route, responsive, accessibility, and production-browser coverage
 
-## Phase 6 — Appointment Management
+## Phase 5 — Staff Authentication and Authorization ✅
 
-- List appointments for staff
-- Add appointment status changes
-- Handle unavailable or invalid appointment times
+- Add individual staff accounts with versioned scrypt password hashes and secure operator provisioning
+- Protect every dashboard read and mutation with revocable, expiring database sessions
+- Add secure login/logout, safe return paths, failure throttling, same-origin validation, and CSRF enforcement
+- Add migration, crypto, session, authorization, security, responsive, and production-browser coverage
 
-## Phase 7 — Dashboard Expansion
+## Phase 6 — Therapist Accounts and Individual Schedules ✅
 
-- Add useful clinic summaries
-- Surface upcoming and unresolved work
-- Add links to common staff actions
+- Add role-aware therapist accounts linked to canonical therapist profiles
+- Preserve legacy appointments while migrating therapist identity safely
+- Let therapists open individual future appointment times and manage only their own appointments
+- Let visitors book only authoritative available slots with concurrent collision protection
+- Keep clinic-wide dashboards and review moderation restricted to staff
+- Add migration, provisioning, ownership, security, responsive, and production-browser coverage
 
-## Phase 8 — Responsive and Accessible Polish
+## Phase 7 — Visitor Notifications and Reminders ✅
 
-- Audit and refine the responsive behavior delivered throughout earlier phases
-- Verify semantic structure and keyboard navigation
-- Add clear focus, validation, and error states
+- Collect a validated visitor notification email and explicit consent during booking
+- Create durable, idempotent appointment-created, confirmed, cancelled, and 24-hour reminder events
+- Keep appointment changes and notification outbox writes atomic
+- Process due events through a provider-independent local HTML and text preview transport
+- Protect visitor addresses from public pages, URLs, logs, errors, and committed artifacts
+- Add migration, retry, time-boundary, privacy, responsive, and production-browser coverage
 
-## Phase 9 — Reliability Hardening
+## Phase 8 — Clinic Operations Reporting ✅
 
-- Add route, component, and database tests
-- Add not-found and server-error pages
-- Add structured request logging
-- Verify production build and startup
+- Add a staff-only scheduled-date report with strict inclusive range filters
+- Show appointment status totals, therapist workload, and agent demand
+- Export the exact filtered appointment population as a privacy-safe CSV
+- Keep reporting live and read-only without snapshots, migrations, or new dependencies
+- Preserve therapist isolation, no-store behavior, accessibility, and responsive presentation
+- Add date-boundary, aggregation, CSV-safety, authorization, and production-browser coverage
 
-## Deferred
+## Phase 9 — Privacy-Preserving Embedded Map ✅
 
-Authentication, notifications, therapist profiles, reporting, and multi-site operation remain outside the initial roadmap.
+- Add an optional interactive OpenStreetMap map to the public About page
+- Require explicit visitor activation before making any third-party map request
+- Keep the fictional address and secured external map link available without JavaScript and when the provider fails
+- Use a fixed demonstration location without persistence, API keys, SDKs, or new dependencies
+- Add network-privacy, accessibility, responsive, failure-fallback, and production-browser coverage
+
+## Phase 10 — Multi-site Operations ✅
+
+- Add two normalized fictional clinic sites and backfill existing schedules and appointments safely
+- Let therapists open site-specific slots and show the authoritative site throughout booking and appointment management
+- Add staff dashboard and operational-report filtering by site, including site-aware CSV exports
+- Include clinic site details in visitor notification previews and public About locations
+- Preserve clinic-wide staff permissions, cross-site therapist collision safety, privacy, accessibility, and responsive coverage
+
+## Phase 11 — Timezone Coordination ✅
+
+- Add canonical UTC instants and IANA time zones while preserving existing site-local schedule values
+- Interpret therapist availability in the selected site's clock and reject daylight-saving gaps and overlaps
+- Make booking, collision checks, reminders, reports, and CSV exports independent of the server time zone
+- Show unambiguous site-local times throughout the clinic and progressively add visitor browser-local equivalents
+- Add atomic migration/backfill, DST, cross-server-time-zone, no-JavaScript, responsive, and production-browser coverage
+
+## Phase 12 — Inner Page Visual Refresh ✅
+
+- Extend the homepage's calm, layered visual language through the public discovery journey
+- Replace catalog tables with semantic, page-specific card collections
+- Strengthen agent details and the path from discovery to appointment booking
+- Preserve routes, data contracts, server rendering, accessibility, and no-JavaScript behavior
+- Add route, responsive, accessibility, regression, and production-browser coverage
+
+## Phase 13 — Complete Interface Refresh ✅
+
+- Extend the refreshed visual system across forms, public content, appointment, error, and staff operations pages
+- Give forms, confirmations, reviews, About content, metrics, reports, and operational tables purposeful visual hierarchy
+- Preserve every route, mutation, permission, privacy boundary, and no-JavaScript workflow
+- Keep staff surfaces information-dense and functional while aligning them with the public product
+- Add semantic, responsive, accessibility, regression, and production-browser coverage
+
+## Phase 14 — Production Release Readiness ✅
+
+- Add a Vercel-compatible Hono runtime while preserving the local Node server
+- Deploy with isolated Preview and Production Turso configuration
+- Add database readiness, browser security headers, and a public demo-data notice
+- Enforce type, test, browser, dependency, whitespace, and live-smoke release gates
+- Document provisioning, deployment, verification, data reset, and rollback

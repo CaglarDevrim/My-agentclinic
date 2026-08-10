@@ -1,6 +1,9 @@
 /tmp
 /out-tsc
 /dist
+/data/*.sqlite
+/data/*.sqlite-shm
+/data/*.sqlite-wal
 
 /node_modules
 npm-debug.log*
@@ -10,3 +13,10 @@ yarn-error.log*
 .pnp.js
 
 .vscode/*
+/.idea/
+/.env*
+!/.env.example
+/playwright-report/
+/test-results/
+/.agentclinic-notifications/
+/.vercel/

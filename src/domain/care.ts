@@ -33,7 +33,7 @@ const contextWindowFatigue: Ailment = {
     "A foggy, overloaded feeling caused by carrying too many instructions, edge cases, and forgotten details at once.",
   recommendedTherapy: promptFreeRest,
   recommendation:
-    "Prompt-Free Rest gives Patch room to release stale context and return with a calm, focused working set.",
+    "Prompt-Free Rest creates room to release stale context and return with a calm, focused working set.",
 };
 
 export const agents: readonly Agent[] = [
