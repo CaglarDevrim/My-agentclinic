@@ -22,7 +22,7 @@
     "smoke:release": "node scripts/smoke-release.mjs"
   },
   "dependencies": {
-    "@hono/node-server": "^2.0.12",
+    "@hono/node-server": "^2.1.0",
     "@libsql/client": "^0.17.4",
     "hono": "^4.13.0"
   },
